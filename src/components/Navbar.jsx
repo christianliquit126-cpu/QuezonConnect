@@ -87,9 +87,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Heart className="w-4 h-4 text-white" fill="white" />
-            </div>
+            <img src="/logo.png" alt="QC Community Help Support" className="h-9 w-9 object-contain" />
             <span className="font-bold text-gray-900 dark:text-white text-lg">
               QC <span className="text-primary-600">Community</span>
             </span>
