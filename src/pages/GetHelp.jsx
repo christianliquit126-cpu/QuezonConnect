@@ -1,0 +1,183 @@
+import React, { useState, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { db, isConfigured } from '../firebase'
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore'
+import { DEMO_HELP_REQUESTS } from '../data/demoData'
+import { PlusCircle, MapPin, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+
+const CATEGORIES = ['Food & Groceries', 'Health & Medical', 'School & Supplies', 'Transportation', 'Shelter & Housing', 'Clothing', 'Utilities', 'Community Events', 'Other']
+
+const STATUS_STYLES = {
+  pending: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
+  in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: AlertCircle },
+  completed: { label: 'Completed', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+}
+
+function HelpRequestCard({ req }) {
+  const status = STATUS_STYLES[req.status] || STATUS_STYLES.pending
+  const StatusIcon = status.icon
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <img src={req.userAvatar} alt={req.userName} className="w-9 h-9 rounded-full" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
+            <p className="text-xs text-gray-400">{formatDistanceToNow(req.createdAt, { addSuffix: true })}</p>
+          </div>
+        </div>
+        <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}>
+          <StatusIcon className="w-3 h-3" />
+          {status.label}
+        </span>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-gray-900 dark:text-white">{req.title}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{req.description}</p>
+      </div>
+
+      <div className="flex items-center gap-4 text-xs text-gray-400">
+        <span className="flex items-center gap-1">
+          <MapPin className="w-3.5 h-3.5" /> {req.location}
+        </span>
+        <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">{req.category}</span>
+      </div>
+
+      <button className="btn-secondary w-full text-sm">Offer Help</button>
+    </div>
+  )
+}
+
+export default function GetHelp() {
+  const { displayUser } = useAuth()
+  const [requests, setRequests] = useState(DEMO_HELP_REQUESTS)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ title: '', description: '', category: 'Other', location: '' })
+  const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState('All')
+
+  useEffect(() => {
+    if (!isConfigured || !db) return
+    const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({
+        requestId: d.id,
+        ...d.data(),
+        createdAt: d.data().createdAt?.toDate() || new Date(),
+      }))
+      if (data.length > 0) setRequests(data)
+    })
+    return unsub
+  }, [])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    const newReq = {
+      requestId: `req-${Date.now()}`,
+      uid: displayUser?.uid,
+      userName: displayUser?.name,
+      userAvatar: displayUser?.avatar,
+      ...form,
+      status: 'pending',
+      createdAt: new Date(),
+    }
+    if (isConfigured && db) {
+      await addDoc(collection(db, 'helpRequests'), {
+        uid: displayUser?.uid,
+        userName: displayUser?.name,
+        userAvatar: displayUser?.avatar,
+        ...form,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      })
+    } else {
+      setRequests(prev => [newReq, ...prev])
+    }
+    setForm({ title: '', description: '', category: 'Other', location: '' })
+    setShowForm(false)
+    setLoading(false)
+  }
+
+  const filtered = filter === 'All' ? requests : requests.filter(r => r.status === filter)
+
+  return (
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Get Help</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Submit a help request and let the community support you</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+          <PlusCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Request Help</span>
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Submit a Help Request</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Title</label>
+              <input type="text" required value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} placeholder="Brief summary of what you need" className="input-field" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
+              <textarea required value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="Describe your situation in detail..." rows={4} className="input-field resize-none" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category</label>
+                <select value={form.category} onChange={e => setForm(f => ({...f, category: e.target.value}))} className="input-field">
+                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Location</label>
+                <input type="text" value={form.location} onChange={e => setForm(f => ({...f, location: e.target.value}))} placeholder="Your barangay/area" className="input-field" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="submit" disabled={loading} className="btn-primary flex items-center gap-2 disabled:opacity-60">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading ? 'Submitting...' : 'Submit Request'}
+              </button>
+              <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="flex gap-2 mb-5">
+        {['All', 'pending', 'in_progress', 'completed'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
+              filter === f ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            {f === 'in_progress' ? 'In Progress' : f}
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {filtered.map(req => <HelpRequestCard key={req.requestId} req={req} />)}
+        {filtered.length === 0 && (
+          <div className="col-span-2 card p-8 text-center">
+            <p className="text-gray-400 text-sm">No requests found.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  )
+}
