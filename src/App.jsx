@@ -13,6 +13,7 @@ import GiveHelp from './pages/GiveHelp'
 import Resources from './pages/Resources'
 import Messages from './pages/Messages'
 import Profile from './pages/Profile'
+import Admin from './pages/Admin'
 import FirebaseSetup from './components/FirebaseSetup'
 import { Loader2 } from 'lucide-react'
 
@@ -21,6 +22,13 @@ const MapView = lazy(() => import('./pages/MapView'))
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn } = useAuth()
   return isLoggedIn ? children : <Navigate to="/login" replace />
+}
+
+const AdminRoute = ({ children }) => {
+  const { isLoggedIn, isAdmin } = useAuth()
+  if (!isLoggedIn) return <Navigate to="/login" replace />
+  if (!isAdmin) return <Navigate to="/" replace />
+  return children
 }
 
 const AppRoutes = () => {
@@ -46,6 +54,7 @@ const AppRoutes = () => {
           <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/map" element={<MapView />} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

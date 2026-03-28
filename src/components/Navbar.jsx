@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle, Bell,
-  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map
+  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map, ShieldCheck
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 
@@ -17,7 +17,7 @@ const navLinks = [
 ]
 
 export default function Navbar() {
-  const { isLoggedIn, displayUser, logout } = useAuth()
+  const { isLoggedIn, isAdmin, displayUser, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -166,6 +166,15 @@ export default function Navbar() {
                       >
                         <Map className="w-4 h-4" /> Community Map
                       </Link>
+                      {isAdmin && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 font-medium"
+                        >
+                          <ShieldCheck className="w-4 h-4" /> Admin Panel
+                        </Link>
+                      )}
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"

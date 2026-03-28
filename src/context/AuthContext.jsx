@@ -115,14 +115,18 @@ export const AuthProvider = ({ children }) => {
         lat: userProfile?.lat || null,
         lng: userProfile?.lng || null,
         isQC: userProfile?.isQC ?? null,
+        role: userProfile?.role || 'member',
       }
     : null
+
+  const isAdmin = userProfile?.role === 'admin'
 
   const value = {
     currentUser,
     userProfile,
     loading,
     isLoggedIn: !!currentUser,
+    isAdmin,
     displayUser,
     login,
     signup,
