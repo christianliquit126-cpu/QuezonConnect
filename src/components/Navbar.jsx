@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
-  Home, HelpCircle, Heart, BookOpen, MessageCircle, Bell,
-  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map, ShieldCheck, Settings
+  Home, HelpCircle, Heart, BookOpen, MessageCircle,
+  Moon, Sun, Menu, X, Search, Settings
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -46,31 +46,15 @@ function useUnreadMessages(currentUser) {
 }
 
 export default function Navbar() {
-  const { isLoggedIn, isAdmin, displayUser, logout, currentUser } = useAuth()
+  const { isLoggedIn, displayUser, currentUser } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
-  const [profileOpen, setProfileOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const dropRef = useRef(null)
   const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (dropRef.current && !dropRef.current.contains(e.target)) setProfileOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
   useEffect(() => setMobileOpen(false), [location.pathname])
-
-  const handleLogout = async () => {
-    setProfileOpen(false)
-    await logout()
-    navigate('/login')
-  }
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'
@@ -164,69 +148,17 @@ export default function Navbar() {
                   Get Help
                 </Link>
 
-                {/* Profile dropdown */}
-                <div className="relative" ref={dropRef}>
-                  <button
-                    onClick={() => setProfileOpen(!profileOpen)}
-                    className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <img
-                      src={displayUser?.avatar}
-                      alt={displayUser?.name}
-                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
-                    />
-                    <ChevronDown className="w-3.5 h-3.5 text-gray-500 hidden sm:block" />
-                  </button>
-
-                  {profileOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-2 z-50">
-                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                        <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
-                          {displayUser?.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {displayUser?.email}
-                        </p>
-                      </div>
-                      <Link
-                        to="/profile"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        <User className="w-4 h-4" /> My Profile
-                      </Link>
-                      <Link
-                        to="/settings"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        <Settings className="w-4 h-4" /> Settings
-                      </Link>
-                      <Link
-                        to="/map"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        <Map className="w-4 h-4" /> Community Map
-                      </Link>
-                      {isAdmin && (
-                        <Link
-                          to="/admin"
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 font-medium"
-                        >
-                          <ShieldCheck className="w-4 h-4" /> Admin Panel
-                        </Link>
-                      )}
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <LogOut className="w-4 h-4" /> Sign Out
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* Avatar → Profile */}
+                <Link
+                  to="/profile"
+                  className="flex items-center p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <img
+                    src={displayUser?.avatar}
+                    alt={displayUser?.name}
+                    className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
+                  />
+                </Link>
               </>
             ) : (
               <div className="flex items-center gap-2">

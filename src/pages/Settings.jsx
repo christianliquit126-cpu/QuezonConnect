@@ -1,27 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
+import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
 import { doc, updateDoc } from 'firebase/firestore'
 import {
   User,
   Mail,
   MapPin,
-  Moon,
-  Sun,
   Camera,
   Loader2,
   Save,
   Map,
   CheckCircle2,
+  LogOut,
 } from 'lucide-react'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 import { useLocationCtx } from '../context/LocationContext'
 import LocationPicker from '../components/LocationPicker'
 
 export default function Settings() {
-  const { displayUser, currentUser, refreshProfile } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { displayUser, currentUser, refreshProfile, logout } = useAuth()
+  const navigate = useNavigate()
   const { location: detectedLoc } = useLocationCtx()
   const fileInputRef = useRef(null)
 
@@ -81,6 +80,11 @@ export default function Settings() {
       city: city || f.city,
       location: address || f.location,
     }))
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
   }
 
   const handleSave = async () => {
@@ -332,42 +336,15 @@ export default function Settings() {
         )}
       </div>
 
-      {/* Preferences Section */}
-      <div className="card p-6 space-y-4">
-        <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3">
-          Preferences
-        </h2>
-
-        {/* Dark mode toggle */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-              {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
-            </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              Switch between light and dark appearance
-            </p>
-          </div>
-          <button
-            onClick={toggleTheme}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-              theme === 'dark' ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
-            }`}
-            aria-label="Toggle dark mode"
-          >
-            <span
-              className={`inline-flex items-center justify-center w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                theme === 'dark' ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
-            >
-              {theme === 'dark' ? (
-                <Moon className="w-3 h-3 text-primary-600" />
-              ) : (
-                <Sun className="w-3 h-3 text-amber-500" />
-              )}
-            </span>
-          </button>
-        </div>
+      {/* Sign Out */}
+      <div className="card p-6">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
       </div>
     </main>
   )
