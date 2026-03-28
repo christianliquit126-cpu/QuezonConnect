@@ -33,6 +33,12 @@ import {
   Menu,
   ChevronRight,
   UserX,
+  BookOpen,
+  MapPin,
+  Phone,
+  Star,
+  Edit2,
+  Save,
 } from 'lucide-react'
 
 const TABS = [
@@ -42,6 +48,7 @@ const TABS = [
   { id: 'users', label: 'Users', icon: Users },
   { id: 'posts', label: 'Posts', icon: FileText },
   { id: 'reports', label: 'Reports', icon: Flag },
+  { id: 'resources', label: 'Resources', icon: BookOpen },
 ]
 
 const STATUS_STYLES = {
@@ -517,6 +524,139 @@ function ReportsTab({ reports }) {
   )
 }
 
+const RESOURCE_CATEGORIES = ['Food & Groceries', 'Health & Medical', 'School & Supplies', 'Transportation', 'Shelter & Housing']
+
+const EMPTY_RESOURCE = { title: '', category: 'Food & Groceries', location: '', hours: '', rating: '', description: '', contact: '', mapUrl: '' }
+
+function ResourcesTab({ resources }) {
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(EMPTY_RESOURCE)
+  const [saving, setSaving] = useState(false)
+
+  const openAdd = () => { setForm(EMPTY_RESOURCE); setEditingId(null); setShowForm(true) }
+  const openEdit = (r) => { setForm({ title: r.title, category: r.category, location: r.location, hours: r.hours, rating: r.rating, description: r.description, contact: r.contact || '', mapUrl: r.mapUrl || '' }); setEditingId(r.id); setShowForm(true) }
+  const closeForm = () => { setShowForm(false); setEditingId(null); setForm(EMPTY_RESOURCE) }
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return
+    setSaving(true)
+    const data = { ...form, rating: parseFloat(form.rating) || 0 }
+    if (editingId) {
+      await updateDoc(doc(db, 'resources', editingId), data)
+    } else {
+      await addDoc(collection(db, 'resources'), { ...data, createdAt: serverTimestamp() })
+    }
+    setSaving(false)
+    closeForm()
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this resource?')) return
+    await deleteDoc(doc(db, 'resources', id))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500 dark:text-gray-400">{resources.length} resource{resources.length !== 1 ? 's' : ''}</p>
+        <button onClick={openAdd} className="btn-primary flex items-center gap-1.5 text-sm">
+          <PlusCircle className="w-4 h-4" /> Add Resource
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="card p-5 space-y-3 border-2 border-primary-200 dark:border-primary-800">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold text-gray-900 dark:text-white">{editingId ? 'Edit Resource' : 'New Resource'}</h3>
+            <button onClick={closeForm} className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title *</label>
+              <input className="input-field text-sm" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Resource name" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
+              <select className="input-field text-sm" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
+                {RESOURCE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Location</label>
+              <input className="input-field text-sm" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} placeholder="Address or area" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Hours</label>
+              <input className="input-field text-sm" value={form.hours} onChange={(e) => setForm((f) => ({ ...f, hours: e.target.value }))} placeholder="e.g. Mon-Fri 8AM-5PM" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Contact</label>
+              <input className="input-field text-sm" value={form.contact} onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))} placeholder="Phone number (optional)" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Rating (0–5)</label>
+              <input className="input-field text-sm" type="number" min="0" max="5" step="0.1" value={form.rating} onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))} placeholder="4.5" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Google Maps URL</label>
+              <input className="input-field text-sm" value={form.mapUrl} onChange={(e) => setForm((f) => ({ ...f, mapUrl: e.target.value }))} placeholder="https://maps.google.com/..." />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
+              <textarea className="input-field text-sm resize-none" rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe this resource..." />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleSave} disabled={saving || !form.title.trim()} className="btn-primary flex items-center gap-1.5 text-sm disabled:opacity-60">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={closeForm} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card overflow-hidden">
+        {resources.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-400 text-center">No resources yet. Add one above.</p>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {resources.map((r) => (
+              <div key={r.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-sm text-gray-900 dark:text-white">{r.title}</p>
+                    <span className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-2 py-0.5 rounded-full">{r.category}</span>
+                    {r.rating > 0 && (
+                      <span className="flex items-center gap-0.5 text-xs text-yellow-500 font-medium">
+                        <Star className="w-3 h-3 fill-current" />{typeof r.rating === 'number' ? r.rating.toFixed(1) : r.rating}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{r.description}</p>
+                  <div className="flex flex-wrap gap-3 mt-1">
+                    {r.location && <span className="flex items-center gap-1 text-xs text-gray-400"><MapPin className="w-3 h-3" />{r.location}</span>}
+                    {r.contact && <span className="flex items-center gap-1 text-xs text-gray-400"><Phone className="w-3 h-3" />{r.contact}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Admin() {
   const { isAdmin, loading, currentUser } = useAuth()
   const [tab, setTab] = useState('overview')
@@ -525,6 +665,7 @@ export default function Admin() {
   const [posts, setPosts] = useState([])
   const [updates, setUpdates] = useState([])
   const [reports, setReports] = useState([])
+  const [resources, setResources] = useState([])
   const [dataLoading, setDataLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -575,6 +716,12 @@ export default function Admin() {
       }, () => {})
     )
 
+    unsubs.push(
+      onSnapshot(query(collection(db, 'resources'), orderBy('createdAt', 'asc')), (snap) => {
+        setResources(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      }, () => {})
+    )
+
     return () => unsubs.forEach((u) => u())
   }, [isAdmin])
 
@@ -599,6 +746,7 @@ export default function Admin() {
     users: <UsersTab users={users} />,
     posts: <PostsTab posts={posts} />,
     reports: <ReportsTab reports={reports} />,
+    resources: <ResourcesTab resources={resources} />,
   }
 
   return (
