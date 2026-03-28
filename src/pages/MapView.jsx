@@ -13,7 +13,7 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useLocationCtx } from '../context/LocationContext'
 import { useTheme } from '../context/ThemeContext'
@@ -459,21 +459,16 @@ export default function MapView() {
       : QC_PLACES.filter((p) => p.type === typeFilter)
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'helpRequests'),
-      where('status', '!=', 'completed'),
-      orderBy('status'),
-      orderBy('createdAt', 'desc')
-    )
-    const unsub = onSnapshot(q, (snap) => {
-      const all = snap.docs.map((d) => ({
-        requestId: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate() || new Date(),
-      }))
-      const withLoc = all.filter((r) => r.lat && r.lng)
+    const unsub = onSnapshot(collection(db, 'helpRequests'), (snap) => {
+      const all = snap.docs
+        .map((d) => ({
+          requestId: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || new Date(),
+        }))
+        .filter((r) => r.status !== 'completed' && r.lat && r.lng)
       if (location) {
-        const sorted = withLoc
+        const sorted = all
           .map((r) => ({
             ...r,
             distance: haversine(location.lat, location.lng, r.lat, r.lng),
@@ -481,7 +476,7 @@ export default function MapView() {
           .sort((a, b) => a.distance - b.distance)
         setNearbyRequests(sorted)
       } else {
-        setNearbyRequests(withLoc)
+        setNearbyRequests(all.sort((a, b) => b.createdAt - a.createdAt))
       }
     })
     return unsub

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useLocationCtx } from '../context/LocationContext'
 import { haversine, formatDistance } from '../data/qcPlaces'
@@ -17,14 +17,8 @@ export default function NearbyHelp() {
   useEffect(() => {
     if (!location) return
     setLoadingReqs(true)
-    const q = query(
-      collection(db, 'helpRequests'),
-      where('status', '!=', 'completed'),
-      orderBy('status'),
-      orderBy('createdAt', 'desc')
-    )
     const unsub = onSnapshot(
-      q,
+      collection(db, 'helpRequests'),
       (snap) => {
         const all = snap.docs.map((d) => ({
           requestId: d.id,
@@ -33,6 +27,7 @@ export default function NearbyHelp() {
         }))
         const nearby = all
           .filter((r) => {
+            if (r.status === 'completed') return false
             if (!r.lat || !r.lng) return false
             const dist = haversine(location.lat, location.lng, r.lat, r.lng)
             return dist <= RADIUS_KM
@@ -45,7 +40,7 @@ export default function NearbyHelp() {
         setRequests(nearby)
         setLoadingReqs(false)
       },
-      () => setLoadingReqs(false)
+      (err) => { console.error('NearbyHelp error:', err); setLoadingReqs(false) }
     )
     return unsub
   }, [location])

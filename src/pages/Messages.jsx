@@ -94,22 +94,23 @@ export default function Messages() {
     if (!currentUser) return
     const q = query(
       collection(db, 'chats'),
-      where('participants', 'array-contains', currentUser.uid),
-      orderBy('updatedAt', 'desc')
+      where('participants', 'array-contains', currentUser.uid)
     )
     const unsub = onSnapshot(
       q,
       (snap) => {
         setChats(
-          snap.docs.map((d) => ({
-            chatId: d.id,
-            ...d.data(),
-            updatedAt: d.data().updatedAt?.toDate() || new Date(),
-          }))
+          snap.docs
+            .map((d) => ({
+              chatId: d.id,
+              ...d.data(),
+              updatedAt: d.data().updatedAt?.toDate() || new Date(),
+            }))
+            .sort((a, b) => b.updatedAt - a.updatedAt)
         )
         setLoadingChats(false)
       },
-      () => setLoadingChats(false)
+      (err) => { console.error('Chats query error:', err); setLoadingChats(false) }
     )
     return unsub
   }, [currentUser])

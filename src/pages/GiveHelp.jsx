@@ -6,7 +6,6 @@ import {
   addDoc,
   serverTimestamp,
   query,
-  where,
   orderBy,
   onSnapshot,
 } from 'firebase/firestore'
@@ -42,22 +41,19 @@ export default function GiveHelp() {
       )
     })
 
-    const rq = query(
-      collection(db, 'helpRequests'),
-      where('status', '!=', 'completed'),
-      orderBy('status'),
-      orderBy('createdAt', 'desc')
-    )
-    const unsub2 = onSnapshot(rq, (snap) => {
+    const unsub2 = onSnapshot(collection(db, 'helpRequests'), (snap) => {
       setOpenRequests(
-        snap.docs.map((d) => ({
-          requestId: d.id,
-          ...d.data(),
-          createdAt: d.data().createdAt?.toDate() || new Date(),
-        }))
+        snap.docs
+          .map((d) => ({
+            requestId: d.id,
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate() || new Date(),
+          }))
+          .filter((r) => r.status !== 'completed')
+          .sort((a, b) => b.createdAt - a.createdAt)
       )
       setLoading(false)
-    }, () => setLoading(false))
+    }, (err) => { console.error('GiveHelp requests error:', err); setLoading(false) })
 
     return () => { unsub1(); unsub2() }
   }, [])

@@ -6,7 +6,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
   doc,
   updateDoc,
@@ -70,49 +69,51 @@ export default function Profile() {
   useEffect(() => {
     if (!currentUser) return
 
-    // Community posts listener
+    // Community posts listener — no orderBy to avoid needing a composite index
     const pq = query(
       collection(db, 'posts'),
-      where('uid', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
+      where('uid', '==', currentUser.uid)
     )
     const unsubPosts = onSnapshot(
       pq,
       (snap) => {
         setMyPosts(
-          snap.docs.map((d) => ({
-            id: d.id,
-            type: 'post',
-            ...d.data(),
-            createdAt: d.data().createdAt?.toDate() || new Date(),
-            likes: d.data().likes || [],
-          }))
+          snap.docs
+            .map((d) => ({
+              id: d.id,
+              type: 'post',
+              ...d.data(),
+              createdAt: d.data().createdAt?.toDate() || new Date(),
+              likes: d.data().likes || [],
+            }))
+            .sort((a, b) => b.createdAt - a.createdAt)
         )
         setLoadingPosts(false)
       },
-      () => setLoadingPosts(false)
+      (err) => { console.error('Posts query error:', err); setLoadingPosts(false) }
     )
 
-    // Help requests listener
+    // Help requests listener — no orderBy to avoid needing a composite index
     const rq = query(
       collection(db, 'helpRequests'),
-      where('uid', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
+      where('uid', '==', currentUser.uid)
     )
     const unsubRequests = onSnapshot(
       rq,
       (snap) => {
         setMyRequests(
-          snap.docs.map((d) => ({
-            id: d.id,
-            type: 'request',
-            ...d.data(),
-            createdAt: d.data().createdAt?.toDate() || new Date(),
-          }))
+          snap.docs
+            .map((d) => ({
+              id: d.id,
+              type: 'request',
+              ...d.data(),
+              createdAt: d.data().createdAt?.toDate() || new Date(),
+            }))
+            .sort((a, b) => b.createdAt - a.createdAt)
         )
         setLoadingRequests(false)
       },
-      () => setLoadingRequests(false)
+      (err) => { console.error('Requests query error:', err); setLoadingRequests(false) }
     )
 
     return () => {
