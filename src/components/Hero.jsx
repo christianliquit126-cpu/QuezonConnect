@@ -66,16 +66,16 @@ export default function Hero({ userName }) {
                 <div className="w-16 h-16 bg-primary-400/50 dark:bg-primary-600/40 rounded-full" />
               </div>
             </div>
-            {/* People icons */}
-            {[
-              { cls: '-top-4 left-8', bg: 'bg-primary-100 dark:bg-primary-900', emoji: '🤝' },
-              { cls: 'top-1/2 -right-4', bg: 'bg-green-100 dark:bg-green-900', emoji: '💙' },
-              { cls: '-bottom-2 left-12', bg: 'bg-yellow-100 dark:bg-yellow-900', emoji: '❤️' },
-            ].map(({ cls, bg, emoji }) => (
-              <div key={emoji} className={`absolute ${cls} w-10 h-10 ${bg} rounded-full flex items-center justify-center text-lg`}>
-                {emoji}
-              </div>
-            ))}
+            {/* Accent dots */}
+            <div className="absolute -top-4 left-8 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
+              <div className="w-5 h-5 bg-primary-400 dark:bg-primary-500 rounded-full" />
+            </div>
+            <div className="absolute top-1/2 -right-4 w-10 h-10 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+              <div className="w-5 h-5 bg-green-400 dark:bg-green-500 rounded-full" />
+            </div>
+            <div className="absolute -bottom-2 left-12 w-10 h-10 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
+              <div className="w-5 h-5 bg-yellow-400 dark:bg-yellow-500 rounded-full" />
+            </div>
           </div>
         </div>
       </div>
