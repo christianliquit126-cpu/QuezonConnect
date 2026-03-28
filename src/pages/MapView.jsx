@@ -435,10 +435,36 @@ function SidebarContent({
               </button>
             </div>
 
-            {!location && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-3 px-4">
-                Enable location to sort places by distance.
-              </p>
+            {/* Empty state — shown before location is detected */}
+            {!location && !locLoading && (
+              <div className="flex flex-col items-center text-center py-10 px-6 gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-primary-500 dark:text-primary-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    No nearby places yet
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                    Enable your location to find nearby police stations, hospitals, and more.
+                  </p>
+                </div>
+                <button
+                  onClick={detect}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Enable Location
+                </button>
+              </div>
+            )}
+
+            {/* Detecting state */}
+            {locLoading && !location && (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400 dark:text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                Finding nearby places...
+              </div>
             )}
 
             <div className="divide-y divide-gray-50 dark:divide-gray-800/80">
@@ -591,11 +617,11 @@ export default function MapView() {
   const attribution =
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
-  // Dynamic sorted places — always based on user location when available
+  // Dynamic sorted places — empty until user location is known
   const sortedPlaces = useMemo(() => {
+    if (!location) return []
     const source =
       typeFilter === 'all' ? QC_PLACES : QC_PLACES.filter((p) => p.type === typeFilter)
-    if (!location) return source
     return source
       .map((p) => ({
         ...p,

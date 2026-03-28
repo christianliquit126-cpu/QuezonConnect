@@ -66,8 +66,10 @@ const getGPSPosition = (options) =>
 
 const GPS_HIGH = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
 const GPS_LOW  = { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
-const MAX_RETRIES = 3
-const ACCEPTABLE_ACCURACY_M = 150
+// Only retry if the first attempt completely failed (timeout/unavailable).
+// Any GPS fix — even coarse — is considered acceptable. IP fallback is the
+// only source that genuinely warrants a "low-accuracy" warning.
+const MAX_RETRIES = 2
 
 export default function useGeolocation() {
   const [location, setLocation]           = useState(null)
@@ -92,31 +94,20 @@ export default function useGeolocation() {
 
     let bestCoords = null
 
-    // --- Attempt high-accuracy GPS with retries ---
+    // --- First attempt: high-accuracy GPS ---
+    // Accept whatever the browser returns — any GPS fix is good enough.
+    // Only retry if the attempt completely fails (timeout / position unavailable).
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if (abortRef.current) break
       try {
         const pos = await getGPSPosition(GPS_HIGH)
-        const acc = pos.coords.accuracy
-        const candidate = {
+        bestCoords = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-          accuracy: acc,
+          accuracy: pos.coords.accuracy,
           source: 'gps-high',
         }
-        // Accept immediately if accuracy is good enough
-        if (acc <= ACCEPTABLE_ACCURACY_M) {
-          bestCoords = candidate
-          break
-        }
-        // Keep best reading across retries
-        if (!bestCoords || acc < bestCoords.accuracy) {
-          bestCoords = candidate
-        }
-        // On last retry, stop regardless
-        if (attempt === MAX_RETRIES) break
-        // Short wait before retry
-        await new Promise((r) => setTimeout(r, 800))
+        break // Accept the first successful GPS fix immediately
       } catch (err) {
         if (err.code === 1) {
           setError('Location access was denied. Please allow location in your browser settings.')
@@ -124,8 +115,9 @@ export default function useGeolocation() {
           setLoading(false)
           return
         }
-        // Timeout or unavailable — try low accuracy next
-        break
+        // Timeout or position unavailable — retry up to MAX_RETRIES
+        if (attempt === MAX_RETRIES) break
+        await new Promise((r) => setTimeout(r, 500))
       }
     }
 
@@ -167,8 +159,9 @@ export default function useGeolocation() {
     setAccuracy(acc)
     setLocationSource(source)
 
-    const isLowAccuracy = source === 'ip' || (typeof acc === 'number' && acc > ACCEPTABLE_ACCURACY_M)
-    setLocationStatus(isLowAccuracy ? 'low-accuracy' : 'locked')
+    // Only IP-based results are genuinely "low accuracy" (city-level at best).
+    // Any GPS fix — regardless of reported meter accuracy — is treated as locked.
+    setLocationStatus(source === 'ip' ? 'low-accuracy' : 'locked')
 
     const addrData = await reverseGeocode(lat, lng)
     if (!abortRef.current) setAddress(addrData)
