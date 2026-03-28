@@ -37,3 +37,13 @@ externalPort = 80
 deploymentTarget = "static"
 build = ["pnpm", "run", "build"]
 publicDir = "dist"
+
+[userenv]
+
+[userenv.shared]
+VITE_FIREBASE_API_KEY = "AIzaSyBF4B-2uUD3ESpUNbXNJH2nVOvN507ZcdA"
+VITE_FIREBASE_AUTH_DOMAIN = "qc-help-support.firebaseapp.com"
+VITE_FIREBASE_PROJECT_ID = "qc-help-support"
+VITE_FIREBASE_STORAGE_BUCKET = "qc-help-support.firebasestorage.app"
+VITE_FIREBASE_MESSAGING_SENDER_ID = "742998021075"
+VITE_FIREBASE_APP_ID = "1:742998021075:web:0b44785ad97a4109fe1526"
