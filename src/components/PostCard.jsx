@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Heart, MessageCircle, Share2, MoreHorizontal, Loader2 } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Heart, MessageCircle, Share2, MoreHorizontal, Loader2, Pencil, Trash2, X, Check } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
   collection,
@@ -10,16 +10,59 @@ import {
   serverTimestamp,
   doc,
   updateDoc,
+  deleteDoc,
   increment,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 
-export default function PostCard({ post, currentUser, onLike }) {
+function PostMenu({ onEdit, onDelete, onClose }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-8 z-20 w-36 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 overflow-hidden"
+    >
+      <button
+        onClick={onEdit}
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+        Edit post
+      </button>
+      <button
+        onClick={onDelete}
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+        Delete post
+      </button>
+    </div>
+  )
+}
+
+export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin }) {
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState([])
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState(post.content)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const isOwner = currentUser?.uid === post.uid
+  const canControl = isOwner || isAdmin
 
   const liked = currentUser ? post.likes?.includes(currentUser.uid) : false
   const likeCount = post.likes?.length || 0
@@ -60,8 +103,33 @@ export default function PostCard({ post, currentUser, onLike }) {
     setSubmitting(false)
   }
 
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || editContent.trim() === post.content) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    await updateDoc(doc(db, 'posts', post.postId), {
+      content: editContent.trim(),
+      editedAt: serverTimestamp(),
+    })
+    setSaving(false)
+    setEditing(false)
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return
+    setDeleting(true)
+    try {
+      await deleteDoc(doc(db, 'posts', post.postId))
+      onDelete?.(post.postId)
+    } catch {
+      setDeleting(false)
+    }
+  }
+
   return (
-    <div className="card overflow-hidden">
+    <div className={`card overflow-hidden transition-opacity ${deleting ? 'opacity-50 pointer-events-none' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
@@ -74,6 +142,7 @@ export default function PostCard({ post, currentUser, onLike }) {
             <p className="font-semibold text-sm text-gray-900 dark:text-white">{post.userName}</p>
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <span>{formatDistanceToNow(post.createdAt, { addSuffix: true })}</span>
+              {post.editedAt && <span className="italic">· edited</span>}
               {post.userLocation && (
                 <>
                   <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -87,18 +156,62 @@ export default function PostCard({ post, currentUser, onLike }) {
           <span className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-2.5 py-1 rounded-full font-medium">
             {post.category}
           </span>
-          <button className="p-1 rounded-lg text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          {canControl && (
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="p-1 rounded-lg text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Post options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {menuOpen && (
+                <PostMenu
+                  onEdit={() => { setEditing(true); setEditContent(post.content); setMenuOpen(false) }}
+                  onDelete={() => { setMenuOpen(false); handleDelete() }}
+                  onClose={() => setMenuOpen(false)}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
       <div className="px-5 pb-4">
-        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{post.content}</p>
+        {editing ? (
+          <div className="space-y-2">
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+              autoFocus
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editContent.trim()}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 transition-colors"
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Save
+              </button>
+              <button
+                onClick={() => { setEditing(false); setEditContent(post.content) }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{post.content}</p>
+        )}
       </div>
 
-      {post.imageURL && (
+      {post.imageURL && !editing && (
         <img src={post.imageURL} alt="Post" className="w-full object-cover max-h-72" />
       )}
 

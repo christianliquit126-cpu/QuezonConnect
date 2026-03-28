@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  setDoc,
 } from 'firebase/firestore'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -26,9 +27,12 @@ import {
   Loader2,
   CheckCircle2,
   Clock,
-  XCircle,
   PlusCircle,
   X,
+  Flag,
+  Menu,
+  ChevronRight,
+  UserX,
 } from 'lucide-react'
 
 const TABS = [
@@ -37,6 +41,7 @@ const TABS = [
   { id: 'updates', label: 'Community Updates', icon: Megaphone },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'posts', label: 'Posts', icon: FileText },
+  { id: 'reports', label: 'Reports', icon: Flag },
 ]
 
 const STATUS_STYLES = {
@@ -56,10 +61,11 @@ function StatCard({ label, value, sub, color }) {
   )
 }
 
-function OverviewTab({ users, requests, posts, updates }) {
+function OverviewTab({ users, requests, posts, updates, reports }) {
   const openRequests = requests.filter((r) => r.status === 'open').length
   const resolvedRequests = requests.filter((r) => r.status === 'resolved').length
   const admins = users.filter((u) => u.role === 'admin').length
+  const openReports = reports.filter((r) => r.status === 'open').length
 
   return (
     <div className="space-y-6">
@@ -67,7 +73,7 @@ function OverviewTab({ users, requests, posts, updates }) {
         <StatCard label="Total Users" value={users.length} sub={`${admins} admin${admins !== 1 ? 's' : ''}`} color="text-primary-600 dark:text-primary-400" />
         <StatCard label="Help Requests" value={requests.length} sub={`${openRequests} open · ${resolvedRequests} resolved`} color="text-yellow-600 dark:text-yellow-400" />
         <StatCard label="Community Posts" value={posts.length} color="text-purple-600 dark:text-purple-400" />
-        <StatCard label="Community Updates" value={updates.length} color="text-green-600 dark:text-green-400" />
+        <StatCard label="Open Reports" value={openReports} sub="Needs attention" color={openReports > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -100,10 +106,10 @@ function OverviewTab({ users, requests, posts, updates }) {
             <div className="space-y-2">
               {posts.slice(0, 5).map((p) => (
                 <div key={p.id} className="flex items-start gap-2">
-                  <img src={p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5" />
+                  <img src={p.authorAvatar || p.userAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{p.content || p.title || '—'}</p>
-                    <p className="text-xs text-gray-400">{p.authorName} · {p.createdAt ? formatDistanceToNow(p.createdAt, { addSuffix: true }) : ''}</p>
+                    <p className="text-xs text-gray-400">{p.authorName || p.userName} · {p.createdAt ? formatDistanceToNow(p.createdAt, { addSuffix: true }) : ''}</p>
                   </div>
                 </div>
               ))}
@@ -201,10 +207,7 @@ function UpdatesTab({ updates }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-900 dark:text-white">Community Updates ({updates.length})</h3>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 btn-primary text-sm"
-        >
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1.5 btn-primary text-sm">
           {showForm ? <X className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
           {showForm ? 'Cancel' : 'New Update'}
         </button>
@@ -216,20 +219,11 @@ function UpdatesTab({ updates }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Title *</label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="Update title"
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Update title" className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Type</label>
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
+              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
                 <option value="INFO">INFO</option>
                 <option value="NEW">NEW</option>
                 <option value="NEED">NEED</option>
@@ -239,28 +233,13 @@ function UpdatesTab({ updates }) {
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Description *</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="What's happening?"
-              rows={3}
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-            />
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What's happening?" rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Location (optional)</label>
-            <input
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              placeholder="e.g. Cubao, Quezon City"
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+            <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Cubao, Quezon City" className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || !form.title.trim() || !form.description.trim()}
-            className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2"
-          >
+          <button onClick={handleSave} disabled={saving || !form.title.trim() || !form.description.trim()} className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             Post Update
           </button>
@@ -297,6 +276,7 @@ function UpdatesTab({ updates }) {
 
 function UsersTab({ users }) {
   const { currentUser } = useAuth()
+  const [deletingId, setDeletingId] = useState(null)
 
   const handleToggleAdmin = async (user) => {
     if (user.uid === currentUser.uid) return
@@ -305,52 +285,107 @@ function UsersTab({ users }) {
     await updateDoc(doc(db, 'users', user.uid), { role: newRole })
   }
 
+  const handleDeleteUser = async (user) => {
+    if (user.uid === currentUser.uid) return
+    if (!window.confirm(`Remove ${user.name} from the community? Their posts will remain but their account will be deactivated.`)) return
+    setDeletingId(user.uid)
+    try {
+      await setDoc(doc(db, 'users', user.uid), { banned: true, role: 'banned', bannedAt: serverTimestamp() }, { merge: true })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const activeUsers = users.filter((u) => u.role !== 'banned')
+  const bannedUsers = users.filter((u) => u.role === 'banned')
+
   return (
-    <div className="card overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <h3 className="font-semibold text-gray-900 dark:text-white">All Users ({users.length})</h3>
-      </div>
-      {users.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-400 text-center">No users yet</p>
-      ) : (
-        <div className="divide-y divide-gray-50 dark:divide-gray-800">
-          {users.map((u) => (
-            <div key={u.uid} className="px-5 py-4 flex items-center gap-3">
-              <img
-                src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=2563eb&color=fff`}
-                alt={u.name}
-                className="w-10 h-10 rounded-full object-cover shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.name}</p>
-                  {u.role === 'admin' && (
-                    <span className="text-xs bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full font-medium">
-                      Admin
-                    </span>
-                  )}
-                  {u.uid === currentUser.uid && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">You</span>
-                  )}
+    <div className="space-y-4">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Active Users ({activeUsers.length})</h3>
+        </div>
+        {activeUsers.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-400 text-center">No users yet</p>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {activeUsers.map((u) => (
+              <div key={u.uid} className={`px-5 py-4 flex items-center gap-3 transition-opacity ${deletingId === u.uid ? 'opacity-50' : ''}`}>
+                <img
+                  src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=2563eb&color=fff`}
+                  alt={u.name}
+                  className="w-10 h-10 rounded-full object-cover shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.name}</p>
+                    {u.role === 'admin' && (
+                      <span className="text-xs bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 px-2 py-0.5 rounded-full font-medium">Admin</span>
+                    )}
+                    {u.uid === currentUser.uid && (
+                      <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">You</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                  {u.location && <p className="text-xs text-gray-400">{u.location}</p>}
                 </div>
-                <p className="text-xs text-gray-400 truncate">{u.email}</p>
-                {u.location && <p className="text-xs text-gray-400">{u.location}</p>}
+                {u.uid !== currentUser.uid && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleToggleAdmin(u)}
+                      title={u.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        u.role === 'admin'
+                          ? 'text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                          : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                      }`}
+                    >
+                      {u.role === 'admin' ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(u)}
+                      disabled={deletingId === u.uid}
+                      title="Remove user"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                    >
+                      <UserX className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
-              {u.uid !== currentUser.uid && (
+            ))}
+          </div>
+        )}
+      </div>
+
+      {bannedUsers.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Banned / Deactivated ({bannedUsers.length})</h3>
+          </div>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {bannedUsers.map((u) => (
+              <div key={u.uid} className="px-5 py-4 flex items-center gap-3 opacity-60">
+                <img
+                  src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=6b7280&color=fff`}
+                  alt={u.name}
+                  className="w-10 h-10 rounded-full object-cover shrink-0 grayscale"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate line-through">{u.name}</p>
+                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                </div>
                 <button
-                  onClick={() => handleToggleAdmin(u)}
-                  title={u.role === 'admin' ? 'Remove admin' : 'Make admin'}
-                  className={`shrink-0 p-1.5 rounded-lg transition-colors ${
-                    u.role === 'admin'
-                      ? 'text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                      : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                  }`}
+                  onClick={async () => {
+                    await updateDoc(doc(db, 'users', u.uid), { banned: false, role: 'member' })
+                  }}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline shrink-0"
                 >
-                  {u.role === 'admin' ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                  Restore
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -359,7 +394,7 @@ function UsersTab({ users }) {
 
 function PostsTab({ posts }) {
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this post?')) return
+    if (!window.confirm('Delete this post? This action cannot be undone.')) return
     await deleteDoc(doc(db, 'posts', id))
   }
 
@@ -375,17 +410,15 @@ function PostsTab({ posts }) {
           {posts.map((p) => (
             <div key={p.id} className="px-5 py-4 flex items-start gap-3">
               <img
-                src={p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`}
-                alt={p.authorName}
+                src={p.userAvatar || p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`}
+                alt={p.userName || p.authorName}
                 className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{p.authorName}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{p.userName || p.authorName}</p>
                   {p.category && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
-                      {p.category}
-                    </span>
+                    <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">{p.category}</span>
                   )}
                   <span className="text-xs text-gray-400">{p.createdAt ? formatDistanceToNow(p.createdAt, { addSuffix: true }) : ''}</span>
                 </div>
@@ -402,14 +435,98 @@ function PostsTab({ posts }) {
   )
 }
 
+function ReportsTab({ reports }) {
+  const handleResolve = async (id) => {
+    await updateDoc(doc(db, 'reports', id), { status: 'resolved', resolvedAt: serverTimestamp() })
+  }
+  const handleDismiss = async (id) => {
+    await updateDoc(doc(db, 'reports', id), { status: 'dismissed' })
+  }
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this report?')) return
+    await deleteDoc(doc(db, 'reports', id))
+  }
+
+  const open = reports.filter((r) => r.status === 'open' || !r.status)
+  const resolved = reports.filter((r) => r.status === 'resolved' || r.status === 'dismissed')
+
+  return (
+    <div className="space-y-4">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Open Reports ({open.length})</h3>
+        </div>
+        {open.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-400">No open reports. All clear!</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {open.map((r) => (
+              <div key={r.id} className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{r.reason || 'Report'}</span>
+                      <span className="text-xs text-gray-400">{r.createdAt ? formatDistanceToNow(r.createdAt, { addSuffix: true }) : ''}</span>
+                    </div>
+                    {r.description && <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{r.description}</p>}
+                    {r.reportedBy && <p className="text-xs text-gray-400 mt-0.5">Reported by: {r.reportedBy}</p>}
+                    {r.targetType && <p className="text-xs text-gray-400">Type: {r.targetType}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <button onClick={() => handleResolve(r.id)} className="text-xs px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 transition-colors font-medium">
+                    Resolve
+                  </button>
+                  <button onClick={() => handleDismiss(r.id)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    Dismiss
+                  </button>
+                  <button onClick={() => handleDelete(r.id)} className="ml-auto p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {resolved.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Resolved / Dismissed ({resolved.length})</h3>
+          </div>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {resolved.map((r) => (
+              <div key={r.id} className="px-5 py-3 flex items-center gap-3 opacity-60">
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${r.status === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                  {r.status}
+                </span>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex-1">{r.reason} {r.description && `— ${r.description}`}</p>
+                <button onClick={() => handleDelete(r.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Admin() {
-  const { isAdmin, loading } = useAuth()
+  const { isAdmin, loading, currentUser } = useAuth()
   const [tab, setTab] = useState('overview')
   const [users, setUsers] = useState([])
   const [requests, setRequests] = useState([])
   const [posts, setPosts] = useState([])
   const [updates, setUpdates] = useState([])
+  const [reports, setReports] = useState([])
   const [dataLoading, setDataLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     if (!isAdmin) return
@@ -449,6 +566,15 @@ export default function Admin() {
       })
     )
 
+    unsubs.push(
+      onSnapshot(query(collection(db, 'reports'), orderBy('createdAt', 'desc')), (snap) => {
+        setReports(snap.docs.map((d) => ({
+          id: d.id, ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || null,
+        })))
+      }, () => {})
+    )
+
     return () => unsubs.forEach((u) => u())
   }, [isAdmin])
 
@@ -464,49 +590,110 @@ export default function Admin() {
     return <Navigate to="/" replace />
   }
 
+  const openReports = reports.filter((r) => !r.status || r.status === 'open').length
+
+  const tabContent = {
+    overview: <OverviewTab users={users} requests={requests} posts={posts} updates={updates} reports={reports} />,
+    requests: <RequestsTab requests={requests} />,
+    updates: <UpdatesTab updates={updates} />,
+    users: <UsersTab users={users} />,
+    posts: <PostsTab posts={posts} />,
+    reports: <ReportsTab reports={reports} />,
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-          <ShieldCheck className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Manage your QC Community platform</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 mb-6 border-b border-gray-200 dark:border-gray-800">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
-              tab === id
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {dataLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
-        </div>
-      ) : (
-        <>
-          {tab === 'overview' && <OverviewTab users={users} requests={requests} posts={posts} updates={updates} />}
-          {tab === 'requests' && <RequestsTab requests={requests} />}
-          {tab === 'updates' && <UpdatesTab updates={updates} />}
-          {tab === 'users' && <UsersTab users={users} />}
-          {tab === 'posts' && <PostsTab posts={posts} />}
-        </>
+    <div className="flex" style={{ minHeight: 'calc(100vh - 64px)' }}>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed md:static inset-y-0 left-0 z-30 md:z-auto
+          w-56 shrink-0 bg-white dark:bg-gray-900
+          border-r border-gray-100 dark:border-gray-800
+          flex flex-col pt-4 pb-6
+          transition-transform md:transition-none
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+        style={{ top: 64 }}
+      >
+        <div className="px-4 mb-4 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">Admin Panel</p>
+            <p className="text-xs text-gray-400 leading-tight">QC Community</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-2 space-y-0.5">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => { setTab(id); setSidebarOpen(false) }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left relative ${
+                tab === id
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {label}
+              {id === 'reports' && openReports > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {openReports}
+                </span>
+              )}
+              {tab === id && <ChevronRight className="w-3.5 h-3.5 ml-auto text-primary-500 dark:text-primary-400" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="px-4 pt-4 border-t border-gray-100 dark:border-gray-800 mt-2">
+          <p className="text-xs text-gray-400 truncate">{currentUser?.email}</p>
+          <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mt-0.5">Administrator</p>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0 overflow-auto">
+        <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-5xl">
+          {/* Mobile header */}
+          <div className="flex items-center gap-3 mb-6 md:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+              {TABS.find((t) => t.id === tab)?.label}
+            </h1>
+          </div>
+
+          {/* Desktop header */}
+          <div className="hidden md:flex items-center gap-2 mb-6">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              {TABS.find((t) => t.id === tab)?.label}
+            </h1>
+          </div>
+
+          {dataLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+            </div>
+          ) : (
+            tabContent[tab]
+          )}
+        </div>
+      </div>
     </div>
   )
 }

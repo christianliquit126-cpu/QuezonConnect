@@ -78,8 +78,8 @@ All three main collections now include location data:
 ## Firestore Collections
 | Collection | Purpose |
 |---|---|
-| `users` | User profiles with location |
-| `posts` | Community posts |
+| `users` | User profiles with location, role (member/admin/banned) |
+| `posts` | Community posts (editable/deletable by owner or admin) |
 | `posts/{id}/comments` | Post comments (subcollection) |
 | `helpRequests` | Help request submissions with coordinates |
 | `chats` | Chat room metadata |
@@ -87,6 +87,35 @@ All three main collections now include location data:
 | `notifications` | User notifications |
 | `volunteers` | Registered volunteers |
 | `communityUpdates` | Admin-posted updates |
+| `reports` | User-submitted content reports (admin-managed) |
+
+## Admin System
+- Admin access: user has `role === 'admin'` in Firestore OR their UID matches `VITE_ADMIN_UID` env var
+- Admin env var takes priority and auto-promotes the user in Firestore on login
+- Banned users (`role === 'banned'`) are automatically signed out on next load
+- Admin panel has sidebar layout with: Overview, Help Requests, Community Updates, Users, Posts, Reports
+- Admin can: delete any post, promote/demote admins, ban users, resolve reports
+
+## Post Management
+- Post owners see a 3-dot menu on their posts with Edit / Delete options
+- Admins see the 3-dot menu on all posts
+- Edit mode opens inline textarea; save updates Firestore in real-time
+- Deleted posts are removed from Firestore immediately
+
+## Location Detection
+- Primary: Browser GPS with `enableHighAccuracy: true`
+- Fallback 1: Browser GPS with lower accuracy if high-accuracy fails
+- Fallback 2: IP-based location via ipapi.co or ip-api.com if GPS unavailable
+- When IP-based, shows "Approximate (IP-based)" label in LocationPicker
+- Reverse geocoding via Nominatim returns barangay, city, province
+- Outside QC shows real detected city, not forced "Quezon City"
+
+## Firebase Security Rules
+- `firestore.rules` contains full rule set for deployment
+- Users can only edit/delete their own posts and requests
+- Admin UID has full access to all collections
+- Banned users cannot create any content
+- Reports collection is read/write by admin only
 
 ## Firebase Setup (via Shell)
 ```bash

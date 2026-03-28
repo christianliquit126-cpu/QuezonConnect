@@ -10,7 +10,6 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
-  increment,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
@@ -21,7 +20,7 @@ import { Loader2, Inbox } from 'lucide-react'
 const FILTERS = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Community Events', 'Transportation']
 
 export default function CommunityFeed() {
-  const { displayUser, isLoggedIn } = useAuth()
+  const { displayUser, isLoggedIn, isAdmin } = useAuth()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
@@ -35,6 +34,7 @@ export default function CommunityFeed() {
           postId: d.id,
           ...d.data(),
           createdAt: d.data().createdAt?.toDate() || new Date(),
+          editedAt: d.data().editedAt?.toDate() || null,
           likes: d.data().likes || [],
         }))
         setPosts(data)
@@ -67,6 +67,10 @@ export default function CommunityFeed() {
     await updateDoc(ref, {
       likes: liked ? arrayRemove(displayUser.uid) : arrayUnion(displayUser.uid),
     })
+  }
+
+  const handleDelete = (postId) => {
+    setPosts((prev) => prev.filter((p) => p.postId !== postId))
   }
 
   const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter)
@@ -113,6 +117,8 @@ export default function CommunityFeed() {
           post={post}
           currentUser={displayUser}
           onLike={handleLike}
+          onDelete={handleDelete}
+          isAdmin={isAdmin}
         />
       ))}
     </div>

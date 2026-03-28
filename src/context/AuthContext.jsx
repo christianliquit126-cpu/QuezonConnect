@@ -12,10 +12,18 @@ import { auth, db, googleProvider, facebookProvider } from '../firebase'
 
 const AuthContext = createContext()
 
+const ADMIN_UID = import.meta.env.VITE_ADMIN_UID || ''
+
 export const useAuth = () => {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
   return ctx
+}
+
+const checkIsAdmin = (uid, profile) => {
+  if (!uid) return false
+  if (ADMIN_UID && uid === ADMIN_UID) return true
+  return profile?.role === 'admin'
 }
 
 export const AuthProvider = ({ children }) => {
@@ -26,6 +34,7 @@ export const AuthProvider = ({ children }) => {
   const createUserDoc = async (firebaseUser, extra = {}) => {
     const ref = doc(db, 'users', firebaseUser.uid)
     const snap = await getDoc(ref)
+    const isEnvAdmin = ADMIN_UID && firebaseUser.uid === ADMIN_UID
     if (!snap.exists()) {
       await setDoc(ref, {
         uid: firebaseUser.uid,
@@ -40,8 +49,11 @@ export const AuthProvider = ({ children }) => {
         lat: extra.lat || null,
         lng: extra.lng || null,
         isQC: extra.isQC !== undefined ? extra.isQC : null,
+        role: isEnvAdmin ? 'admin' : 'member',
         createdAt: serverTimestamp(),
       })
+    } else if (isEnvAdmin && snap.data().role !== 'admin') {
+      await setDoc(ref, { role: 'admin' }, { merge: true })
     }
     const updated = await getDoc(ref)
     return updated.data()
@@ -50,7 +62,21 @@ export const AuthProvider = ({ children }) => {
   const fetchUserProfile = async (uid) => {
     const ref = doc(db, 'users', uid)
     const snap = await getDoc(ref)
-    if (snap.exists()) setUserProfile(snap.data())
+    if (snap.exists()) {
+      const data = snap.data()
+      if (data.role === 'banned') {
+        await signOut(auth)
+        setUserProfile(null)
+        return
+      }
+      const isEnvAdmin = ADMIN_UID && uid === ADMIN_UID
+      if (isEnvAdmin && data.role !== 'admin') {
+        await setDoc(ref, { role: 'admin' }, { merge: true })
+        setUserProfile({ ...data, role: 'admin' })
+      } else {
+        setUserProfile(data)
+      }
+    }
   }
 
   useEffect(() => {
@@ -100,6 +126,8 @@ export const AuthProvider = ({ children }) => {
     if (currentUser) await fetchUserProfile(currentUser.uid)
   }
 
+  const isAdmin = checkIsAdmin(currentUser?.uid, userProfile)
+
   const displayUser = currentUser
     ? {
         uid: currentUser.uid,
@@ -115,11 +143,9 @@ export const AuthProvider = ({ children }) => {
         lat: userProfile?.lat || null,
         lng: userProfile?.lng || null,
         isQC: userProfile?.isQC ?? null,
-        role: userProfile?.role || 'member',
+        role: isAdmin ? 'admin' : (userProfile?.role || 'member'),
       }
     : null
-
-  const isAdmin = userProfile?.role === 'admin'
 
   const value = {
     currentUser,

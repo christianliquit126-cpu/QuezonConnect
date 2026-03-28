@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if requester is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: check if requester is admin (stored in users doc)
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper: check if user is not banned
+    function notBanned() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'banned';
+    }
+
+    // Helper: check if requester owns the document
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Users collection ──────────────────────────────────────────
+    match /users/{userId} {
+      // Anyone can read user profiles (needed for avatars, names)
+      allow read: if isAuth();
+      // Users can create/update their own doc; admin can update any
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      // Only admin can delete user docs
+      allow delete: if isAdmin();
+    }
+
+    // ── Posts collection ──────────────────────────────────────────
+    match /posts/{postId} {
+      allow read: if true;
+      // Authenticated non-banned users can create
+      allow create: if isAuth() && notBanned();
+      // Only post owner or admin can update/delete
+      allow update: if (isOwner(resource.data.uid) || isAdmin()) && notBanned();
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuth() && notBanned();
+        allow update: if isOwner(resource.data.uid) && notBanned();
+        allow delete: if isOwner(resource.data.uid) || isAdmin();
+      }
+    }
+
+    // ── Help Requests collection ──────────────────────────────────
+    match /helpRequests/{requestId} {
+      allow read: if true;
+      allow create: if isAuth() && notBanned();
+      // Owner can update their own request; admin can update any
+      allow update: if (isOwner(resource.data.uid) || isAdmin()) && notBanned();
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+
+    // ── Community Updates (admin-only write) ──────────────────────
+    match /communityUpdates/{updateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Chats ─────────────────────────────────────────────────────
+    match /chats/{chatId} {
+      allow read: if isAuth() &&
+        (resource.data.participants.hasAny([request.auth.uid]) || isAdmin());
+      allow create: if isAuth() && notBanned();
+      allow update: if isAuth() &&
+        resource.data.participants.hasAny([request.auth.uid]);
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAuth() &&
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+        allow create: if isAuth() && notBanned() &&
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+        allow update, delete: if isOwner(resource.data.uid) || isAdmin();
+      }
+    }
+
+    // ── Reports ───────────────────────────────────────────────────
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuth() && notBanned();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Volunteers ────────────────────────────────────────────────
+    match /volunteers/{volId} {
+      allow read: if true;
+      allow create: if isAuth() && notBanned();
+      allow update: if isOwner(resource.data.uid) || isAdmin();
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+  }
+}

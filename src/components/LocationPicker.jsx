@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { MapPin, Loader2, Navigation, AlertCircle } from 'lucide-react'
+import { MapPin, Loader2, Navigation, AlertCircle, Wifi } from 'lucide-react'
 import useGeolocation from '../hooks/useGeolocation'
 import { QC_CENTER } from '../data/qcPlaces'
 
@@ -18,12 +18,34 @@ const loadLeaflet = () =>
     })
   })
 
+const reverseGeocodeSimple = async (lat, lng) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'QCCommunityApp/1.0' } }
+    )
+    const data = await res.json()
+    const addr = data.address || {}
+    return {
+      lat,
+      lng,
+      barangay: addr.suburb || addr.neighbourhood || addr.village || '',
+      city: addr.city || addr.town || addr.municipality || '',
+      address: addr.suburb
+        ? `${addr.suburb}, ${addr.city || addr.town || 'QC'}`
+        : data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+    }
+  } catch {
+    return { lat, lng, barangay: '', city: '', address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` }
+  }
+}
+
 export default function LocationPicker({ value, onChange, label }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
-  const { location, address, loading, error, detect } = useGeolocation()
+  const { location, address, loading, error, locationSource, detect } = useGeolocation()
 
   const initialLat = value?.lat || QC_CENTER.lat
   const initialLng = value?.lng || QC_CENTER.lng
@@ -62,49 +84,20 @@ export default function LocationPicker({ value, onChange, label }) {
         draggable: true,
       }).addTo(map)
 
-      marker.on('dragend', async () => {
+      const updateFromLatLng = async (lat, lng) => {
+        if (!onChange) return
+        const result = await reverseGeocodeSimple(lat, lng)
+        onChange(result)
+      }
+
+      marker.on('dragend', () => {
         const pos = marker.getLatLng()
-        if (onChange) {
-          const { default: geo } = await import('../hooks/useGeolocation')
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.lat}&lon=${pos.lng}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const data = await res.json().catch(() => ({}))
-          const addr = data.address || {}
-          onChange({
-            lat: pos.lat,
-            lng: pos.lng,
-            barangay: addr.suburb || addr.neighbourhood || addr.village || '',
-            city: addr.city || addr.town || '',
-            address:
-              addr.suburb
-                ? `${addr.suburb}, ${addr.city || 'Quezon City'}`
-                : data.display_name || '',
-          })
-        }
+        updateFromLatLng(pos.lat, pos.lng)
       })
 
-      map.on('click', async (e) => {
+      map.on('click', (e) => {
         marker.setLatLng(e.latlng)
-        if (onChange) {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${e.latlng.lat}&lon=${e.latlng.lng}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-          const data = await res.json().catch(() => ({}))
-          const addr = data.address || {}
-          onChange({
-            lat: e.latlng.lat,
-            lng: e.latlng.lng,
-            barangay: addr.suburb || addr.neighbourhood || addr.village || '',
-            city: addr.city || addr.town || '',
-            address:
-              addr.suburb
-                ? `${addr.suburb}, ${addr.city || 'Quezon City'}`
-                : data.display_name || '',
-          })
-        }
+        updateFromLatLng(e.latlng.lat, e.latlng.lng)
       })
 
       markerRef.current = marker
@@ -123,8 +116,6 @@ export default function LocationPicker({ value, onChange, label }) {
 
   useEffect(() => {
     if (!mapReady || !location) return
-    const L = window._L
-    if (!L) return
     const { lat, lng } = location
     mapInstanceRef.current?.setView([lat, lng], 16)
     markerRef.current?.setLatLng([lat, lng])
@@ -135,8 +126,8 @@ export default function LocationPicker({ value, onChange, label }) {
         barangay: address.barangay || '',
         city: address.city || '',
         address: address.barangay
-          ? `${address.barangay}, ${address.city || 'Quezon City'}`
-          : address.display || '',
+          ? `${address.barangay}, ${address.city || 'QC'}`
+          : address.display || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       })
     }
   }, [location, address, mapReady])
@@ -169,8 +160,14 @@ export default function LocationPicker({ value, onChange, label }) {
           ) : (
             <Navigation className="w-3.5 h-3.5" />
           )}
-          {loading ? 'Detecting...' : 'Detect My Location'}
+          {loading ? 'Detecting location...' : 'Detect My Location'}
         </button>
+        {locationSource === 'ip' && !loading && (
+          <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+            <Wifi className="w-3 h-3" />
+            Approximate (IP-based)
+          </span>
+        )}
         {value?.address && (
           <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
             <MapPin className="w-3 h-3" />
@@ -185,7 +182,7 @@ export default function LocationPicker({ value, onChange, label }) {
         </div>
       )}
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        Click on the map or drag the marker to set your location.
+        Click on the map or drag the marker to set your location manually.
       </p>
     </div>
   )
