@@ -5,7 +5,6 @@ import { db } from '../firebase'
 import { doc, updateDoc } from 'firebase/firestore'
 import {
   User,
-  Mail,
   MapPin,
   Camera,
   Loader2,
@@ -293,30 +292,11 @@ export default function Settings() {
       </div>
 
       {/* Account Section */}
-      <div className="card p-6 space-y-4">
-        <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3">
-          Account
-        </h2>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            <span className="flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5" />
-              Email Address
-            </span>
-          </label>
-          <input
-            type="email"
-            value={displayUser?.email || ''}
-            readOnly
-            className="input-field bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-default select-all"
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Email address cannot be changed here.
-          </p>
-        </div>
-
-        {displayUser?.role && (
+      {displayUser?.role && (
+        <div className="card p-6 space-y-4">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3">
+            Account
+          </h2>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Account Role
@@ -333,8 +313,8 @@ export default function Settings() {
               </span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Sign Out */}
       <div className="card p-6">
