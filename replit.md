@@ -134,6 +134,31 @@ kill 1   # restart to pick up env vars
 - Facebook OAuth
 - All require Firebase Auth to be configured
 
+## Cloudinary Image Upload
+- Cloud Name: `de5zfe8tn`, Upload Preset: `portfolio`, Folder: `qc-community`
+- Unsigned upload directly from browser to Cloudinary (no backend needed)
+- `src/services/cloudinary.js` — upload function with XHR progress tracking
+- `src/components/ImageUpload.jsx` — reusable component with drag-drop, preview, progress bar
+- Avatar uploads use `w_200,h_200,c_fill,g_face` transformation for face-focused crops
+- Post/request images use `f_auto,q_auto,w_1200` for auto-optimized delivery
+- **Avatar upload**: Camera button on profile page, triggers file picker, uploads and saves URL to Firestore
+- **Post image upload**: Image icon in CreatePost expands to upload inline before posting
+- **Help request image**: Optional drag-drop upload in the help request form
+
+## Chat System (Messages)
+- Real-time 1-on-1 chat using Firestore subcollections
+- Unread badge on Messages icon in Navbar (counts chats with new messages from others)
+- Unread bold styling in chat list for conversations with unseen messages
+- Grouped chat bubbles — consecutive messages from same user are visually grouped
+- Message notifications sent to recipient via `notifications` collection on every send
+- Skeleton loading state for chat list
+
+## Notification System
+- `src/services/notifications.js` — `createNotification()` helper
+- Triggered on: comment on your post, new message received
+- Real-time listener in NotificationBell via Firestore onSnapshot
+- Unread count badge, "Mark all read" batch update
+
 ## Dev Server
 - Host: 0.0.0.0, Port: 5000
 - Command: `pnpm run dev`

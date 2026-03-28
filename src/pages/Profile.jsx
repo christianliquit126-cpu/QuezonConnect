@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
@@ -28,11 +28,14 @@ import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { useLocationCtx } from '../context/LocationContext'
 import LocationPicker from '../components/LocationPicker'
+import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 
 export default function Profile() {
   const { displayUser, currentUser, logout, userProfile, refreshProfile } = useAuth()
-  const { location: detectedLoc, address: detectedAddr } = useLocationCtx()
+  const { location: detectedLoc } = useLocationCtx()
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
+
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     name: displayUser?.name || '',
@@ -47,6 +50,8 @@ export default function Profile() {
   const [myPosts, setMyPosts] = useState([])
   const [myRequests, setMyRequests] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarProgress, setAvatarProgress] = useState(0)
 
   useEffect(() => {
     if (!currentUser) return
@@ -86,19 +91,35 @@ export default function Profile() {
       )
     })
 
-    return () => {
-      unsub1()
-      unsub2()
-    }
+    return () => { unsub1(); unsub2() }
   }, [currentUser])
+
+  const handleAvatarClick = () => {
+    if (!avatarUploading) fileInputRef.current?.click()
+  }
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !currentUser) return
+    e.target.value = ''
+    setAvatarUploading(true)
+    setAvatarProgress(0)
+    try {
+      const { url } = await uploadToCloudinary(file, setAvatarProgress)
+      const avatarUrl = getAvatarUrl(url)
+      await updateDoc(doc(db, 'users', currentUser.uid), { avatar: avatarUrl })
+      await refreshProfile()
+    } catch {}
+    setAvatarUploading(false)
+    setAvatarProgress(0)
+  }
 
   const handleSave = async () => {
     if (!currentUser) return
     setSaving(true)
-    const locationStr =
-      form.barangay
-        ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
-        : form.location
+    const locationStr = form.barangay
+      ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
+      : form.location
     await updateDoc(doc(db, 'users', currentUser.uid), {
       name: form.name,
       location: locationStr,
@@ -153,15 +174,43 @@ export default function Profile() {
       <div className="card p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="relative">
+            {/* Avatar with upload */}
+            <div className="relative shrink-0">
               <img
                 src={displayUser?.avatar}
                 alt={displayUser?.name}
                 className="w-20 h-20 rounded-2xl object-cover border-2 border-primary-100 dark:border-primary-900"
               />
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-600 text-white rounded-full flex items-center justify-center">
-                <Camera className="w-3.5 h-3.5" />
-              </div>
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={avatarUploading}
+                className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-60"
+                title="Change photo"
+              >
+                {avatarUploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Camera className="w-3.5 h-3.5" />
+                )}
+              </button>
+              {avatarUploading && avatarProgress > 0 && (
+                <div className="absolute -bottom-5 left-0 right-0">
+                  <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary-600 rounded-full transition-all"
+                      style={{ width: `${avatarProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
 
             <div>
@@ -254,6 +303,11 @@ export default function Profile() {
                       )}
                     </div>
                   )}
+                  {displayUser?.role === 'admin' && (
+                    <span className="inline-flex items-center gap-1 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-0.5 rounded-full mt-1 font-medium">
+                      Admin
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -305,7 +359,6 @@ export default function Profile() {
           ))}
         </div>
 
-        {/* Map shortcut */}
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
           <Link
             to="/map"
@@ -317,7 +370,7 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Recent posts */}
+      {/* My posts */}
       {myPosts.length > 0 && (
         <div className="card p-5">
           <h2 className="font-bold text-gray-900 dark:text-white mb-4">My Posts</h2>
@@ -330,14 +383,16 @@ export default function Profile() {
                 <div className="w-8 h-8 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-center shrink-0">
                   <MessageCircle className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                     {post.content}
                   </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                     <span>{post.likes?.length || 0} likes</span>
                     <span>{post.commentCount || 0} comments</span>
-                    <span>{post.category}</span>
+                    <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                      {post.category}
+                    </span>
                     <span>{formatDistanceToNow(post.createdAt, { addSuffix: true })}</span>
                   </div>
                 </div>
@@ -347,7 +402,7 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Recent help requests */}
+      {/* My help requests */}
       {myRequests.length > 0 && (
         <div className="card p-5">
           <h2 className="font-bold text-gray-900 dark:text-white mb-4">My Help Requests</h2>
@@ -360,8 +415,10 @@ export default function Profile() {
                 <div className="w-8 h-8 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center shrink-0">
                   <Heart className="w-4 h-4 text-orange-500" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{req.title}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                    {req.title}
+                  </p>
                   <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 flex-wrap">
                     <span
                       className={`px-2 py-0.5 rounded-full font-medium ${
@@ -372,7 +429,7 @@ export default function Profile() {
                           : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                       }`}
                     >
-                      {req.status === 'in_progress' ? 'In Progress' : req.status}
+                      {req.status === 'in_progress' ? 'In Progress' : req.status || 'Pending'}
                     </span>
                     {req.location && (
                       <span className="flex items-center gap-0.5">

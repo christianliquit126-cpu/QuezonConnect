@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../firebase'
 import {
@@ -15,24 +15,61 @@ import {
   getDocs,
   updateDoc,
 } from 'firebase/firestore'
-import { format, formatDistanceToNow } from 'date-fns'
-import { Send, Search, ArrowLeft, Users, Loader2 } from 'lucide-react'
+import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns'
+import { Send, Search, ArrowLeft, Users, Loader2, MessageCircle } from 'lucide-react'
+import { createNotification } from '../services/notifications'
 
-function ChatBubble({ msg, isOwn }) {
+function formatMsgTime(date) {
+  if (!date) return ''
+  if (isToday(date)) return format(date, 'h:mm a')
+  if (isYesterday(date)) return 'Yesterday'
+  return format(date, 'MMM d')
+}
+
+function ChatBubble({ msg, isOwn, showAvatar, avatar, name }) {
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2`}>
-      <div
-        className={`max-w-xs sm:max-w-sm px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
-          isOwn
-            ? 'bg-primary-600 text-white rounded-br-sm'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
-        }`}
-      >
-        {msg.content}
-        <p className={`text-xs mt-1 ${isOwn ? 'text-primary-200' : 'text-gray-400'}`}>
+    <div className={`flex items-end gap-2 mb-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+      {!isOwn && (
+        <div className="w-6 shrink-0">
+          {showAvatar && (
+            <img
+              src={avatar}
+              alt={name}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          )}
+        </div>
+      )}
+      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-xs sm:max-w-sm`}>
+        <div
+          className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
+            isOwn
+              ? 'bg-primary-600 text-white rounded-br-sm'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
+          }`}
+        >
+          {msg.content}
+        </div>
+        <p className="text-xs text-gray-400 mt-0.5 px-1">
           {msg.timestamp ? format(msg.timestamp, 'h:mm a') : '...'}
         </p>
       </div>
+    </div>
+  )
+}
+
+function SkeletonChat() {
+  return (
+    <div className="space-y-3 p-4 animate-pulse">
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3">
+          <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+            <div className="h-2.5 bg-gray-100 dark:bg-gray-800 rounded w-2/3" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -49,11 +86,10 @@ export default function Messages() {
   const [showNewChat, setShowNewChat] = useState(false)
   const [loadingChats, setLoadingChats] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
-  const [typing, setTyping] = useState(false)
+  const [loadingUsers, setLoadingUsers] = useState(false)
   const bottomRef = useRef(null)
-  const typingRef = useRef(null)
+  const inputRef = useRef(null)
 
-  // Load all chats for current user
   useEffect(() => {
     if (!currentUser) return
     const q = query(
@@ -61,22 +97,25 @@ export default function Messages() {
       where('participants', 'array-contains', currentUser.uid),
       orderBy('updatedAt', 'desc')
     )
-    const unsub = onSnapshot(q, (snap) => {
-      setChats(
-        snap.docs.map((d) => ({
-          chatId: d.id,
-          ...d.data(),
-          updatedAt: d.data().updatedAt?.toDate() || new Date(),
-        }))
-      )
-      setLoadingChats(false)
-    }, () => setLoadingChats(false))
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setChats(
+          snap.docs.map((d) => ({
+            chatId: d.id,
+            ...d.data(),
+            updatedAt: d.data().updatedAt?.toDate() || new Date(),
+          }))
+        )
+        setLoadingChats(false)
+      },
+      () => setLoadingChats(false)
+    )
     return unsub
   }, [currentUser])
 
-  // Load messages for active chat in real-time
   useEffect(() => {
-    if (!activeChat) return
+    if (!activeChat) { setMessages([]); return }
     setLoadingMsgs(true)
     const q = query(
       collection(db, 'chats', activeChat.chatId, 'messages'),
@@ -93,28 +132,36 @@ export default function Messages() {
       setLoadingMsgs(false)
     })
     return unsub
-  }, [activeChat])
+  }, [activeChat?.chatId])
 
-  // Scroll to bottom on new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
-  // Load all users for new chat
   useEffect(() => {
     if (!showNewChat) return
+    setLoadingUsers(true)
     getDocs(collection(db, 'users')).then((snap) => {
       setAllUsers(
         snap.docs
           .map((d) => d.data())
-          .filter((u) => u.uid !== currentUser?.uid)
+          .filter((u) => u.uid !== currentUser?.uid && u.role !== 'banned')
       )
+      setLoadingUsers(false)
     })
   }, [showNewChat, currentUser])
 
+  useEffect(() => {
+    if (activeChat) {
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }, [activeChat?.chatId])
+
   const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_')
 
-  const startChat = async (otherUser) => {
+  const startChat = useCallback(async (otherUser) => {
     const chatId = getChatId(currentUser.uid, otherUser.uid)
     const ref = doc(db, 'chats', chatId)
     const snap = await getDoc(ref)
@@ -127,22 +174,25 @@ export default function Messages() {
         },
         participantAvatars: {
           [currentUser.uid]: displayUser.avatar,
-          [otherUser.uid]: otherUser.avatar,
+          [otherUser.uid]: otherUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.name || 'U')}&background=2563eb&color=fff`,
         },
         lastMessage: '',
+        unreadCount: {},
         updatedAt: serverTimestamp(),
       })
     }
-    const chat = { chatId, ...((await getDoc(ref)).data()), updatedAt: new Date() }
-    setActiveChat(chat)
+    const updatedSnap = await getDoc(ref)
+    setActiveChat({ chatId, ...updatedSnap.data(), updatedAt: new Date() })
     setShowNewChat(false)
-  }
+    setUserSearch('')
+  }, [currentUser, displayUser])
 
   const handleSend = async (e) => {
     e.preventDefault()
     if (!input.trim() || !activeChat) return
     const text = input.trim()
     setInput('')
+    const otherId = activeChat.participants?.find((p) => p !== currentUser.uid)
     await addDoc(collection(db, 'chats', activeChat.chatId, 'messages'), {
       uid: currentUser.uid,
       content: text,
@@ -150,17 +200,36 @@ export default function Messages() {
     })
     await updateDoc(doc(db, 'chats', activeChat.chatId), {
       lastMessage: text,
+      lastSenderId: currentUser.uid,
       updatedAt: serverTimestamp(),
     })
+    if (otherId) {
+      createNotification({
+        recipientUid: otherId,
+        type: 'message',
+        message: `${displayUser.name}: ${text.length > 60 ? text.slice(0, 60) + '…' : text}`,
+        link: '/messages',
+        senderName: displayUser.name,
+        senderAvatar: displayUser.avatar,
+      })
+    }
   }
 
   const getOtherParticipant = (chat) => {
     const otherId = chat.participants?.find((p) => p !== currentUser?.uid)
     return {
       name: chat.participantNames?.[otherId] || 'User',
-      avatar: chat.participantAvatars?.[otherId] || `https://ui-avatars.com/api/?name=User&background=6b7280&color=fff`,
+      avatar:
+        chat.participantAvatars?.[otherId] ||
+        `https://ui-avatars.com/api/?name=User&background=6b7280&color=fff`,
       uid: otherId,
     }
+  }
+
+  const isUnread = (chat) => {
+    if (!chat.lastSenderId || chat.lastSenderId === currentUser?.uid) return false
+    if (!chat.lastMessage) return false
+    return true
   }
 
   const filteredChats = chats.filter((c) => {
@@ -172,25 +241,53 @@ export default function Messages() {
     u.name?.toLowerCase().includes(userSearch.toLowerCase())
   )
 
+  const groupMessages = (msgs) => {
+    const groups = []
+    let currentGroup = []
+    msgs.forEach((msg, i) => {
+      const prev = msgs[i - 1]
+      const sameUser = prev?.uid === msg.uid
+      const closeInTime =
+        prev?.timestamp &&
+        msg.timestamp &&
+        msg.timestamp - prev.timestamp < 60000
+      if (!sameUser || !closeInTime) {
+        if (currentGroup.length) groups.push(currentGroup)
+        currentGroup = [msg]
+      } else {
+        currentGroup.push(msg)
+      }
+    })
+    if (currentGroup.length) groups.push(currentGroup)
+    return groups
+  }
+
+  const messageGroups = groupMessages(messages)
+
   return (
-    <div className="max-w-5xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-8 h-[calc(100vh-4rem)]">
+    <div
+      className="max-w-5xl mx-auto px-0 sm:px-6 lg:px-8 py-0 sm:py-8"
+      style={{ height: 'calc(100vh - 64px)' }}
+    >
       <div className="h-full card overflow-hidden flex">
-        {/* Chat list */}
+        {/* Chat list sidebar */}
         <div
           className={`${
             activeChat ? 'hidden md:flex' : 'flex'
-          } w-full md:w-72 flex-col border-r border-gray-100 dark:border-gray-800`}
+          } w-full md:w-72 flex-col border-r border-gray-100 dark:border-gray-800 shrink-0`}
         >
           <div className="p-4 border-b border-gray-100 dark:border-gray-800 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-gray-900 dark:text-white">Messages</h2>
               <button
-                onClick={() => setShowNewChat(!showNewChat)}
+                onClick={() => { setShowNewChat(!showNewChat); setUserSearch('') }}
                 className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
               >
-                <Users className="w-3.5 h-3.5" /> New Chat
+                <Users className="w-3.5 h-3.5" />
+                New Chat
               </button>
             </div>
+
             {showNewChat ? (
               <div>
                 <input
@@ -201,19 +298,35 @@ export default function Messages() {
                   className="input-field py-1.5 text-xs"
                   autoFocus
                 />
-                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                  {filteredUsers.map((u) => (
-                    <button
-                      key={u.uid}
-                      onClick={() => startChat(u)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
-                    >
-                      <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full object-cover" />
-                      <span className="text-sm text-gray-800 dark:text-gray-200">{u.name}</span>
-                    </button>
-                  ))}
-                  {filteredUsers.length === 0 && (
+                <div className="mt-2 space-y-0.5 max-h-52 overflow-y-auto">
+                  {loadingUsers ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                    </div>
+                  ) : filteredUsers.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-3">No users found</p>
+                  ) : (
+                    filteredUsers.map((u) => (
+                      <button
+                        key={u.uid}
+                        onClick={() => startChat(u)}
+                        className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+                      >
+                        <img
+                          src={u.avatar}
+                          alt={u.name}
+                          className="w-8 h-8 rounded-full object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {u.name}
+                          </p>
+                          {u.location && (
+                            <p className="text-xs text-gray-400 truncate">{u.location}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))
                   )}
                 </div>
               </div>
@@ -233,22 +346,22 @@ export default function Messages() {
 
           <div className="flex-1 overflow-y-auto">
             {loadingChats ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
-              </div>
+              <SkeletonChat />
             ) : filteredChats.length === 0 ? (
-              <div className="text-center py-8 px-4">
-                <p className="text-sm text-gray-400">No conversations yet.</p>
+              <div className="text-center py-12 px-4">
+                <MessageCircle className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">No conversations yet.</p>
                 <p className="text-xs text-gray-400 mt-1">Click "New Chat" to start one.</p>
               </div>
             ) : (
               filteredChats.map((chat) => {
                 const other = getOtherParticipant(chat)
+                const unread = isUnread(chat)
                 return (
                   <button
                     key={chat.chatId}
                     onClick={() => setActiveChat(chat)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative ${
                       activeChat?.chatId === chat.chatId
                         ? 'bg-primary-50 dark:bg-primary-900/20 border-r-2 border-primary-600'
                         : ''
@@ -261,17 +374,32 @@ export default function Messages() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        <p
+                          className={`text-sm truncate ${
+                            unread
+                              ? 'font-bold text-gray-900 dark:text-white'
+                              : 'font-semibold text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
                           {other.name}
                         </p>
                         <p className="text-xs text-gray-400 shrink-0 ml-2">
-                          {formatDistanceToNow(chat.updatedAt, { addSuffix: false })}
+                          {formatMsgTime(chat.updatedAt)}
                         </p>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p
+                        className={`text-xs truncate mt-0.5 ${
+                          unread
+                            ? 'text-gray-800 dark:text-gray-200 font-medium'
+                            : 'text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
                         {chat.lastMessage || 'No messages yet'}
                       </p>
                     </div>
+                    {unread && (
+                      <div className="w-2 h-2 bg-primary-600 rounded-full shrink-0" />
+                    )}
                   </button>
                 )
               })
@@ -286,35 +414,61 @@ export default function Messages() {
             {(() => {
               const other = getOtherParticipant(activeChat)
               return (
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
                   <button
                     onClick={() => setActiveChat(null)}
                     className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                   </button>
-                  <img src={other.avatar} alt={other.name} className="w-9 h-9 rounded-full object-cover" />
+                  <img
+                    src={other.avatar}
+                    alt={other.name}
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
                   <div>
-                    <p className="font-semibold text-sm text-gray-900 dark:text-white">{other.name}</p>
+                    <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                      {other.name}
+                    </p>
+                    <p className="text-xs text-gray-400">Community member</p>
                   </div>
                 </div>
               )
             })()}
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto chat-scroll px-4 py-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               {loadingMsgs ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
                 </div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-sm text-gray-400">No messages yet. Say hello!</p>
+                  <p className="text-sm text-gray-400">
+                    No messages yet. Say hello!
+                  </p>
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <ChatBubble key={msg.msgId} msg={msg} isOwn={msg.uid === currentUser?.uid} />
-                ))
+                <>
+                  {messageGroups.map((group, gi) => {
+                    const isOwn = group[0].uid === currentUser?.uid
+                    const other = getOtherParticipant(activeChat)
+                    return (
+                      <div key={gi} className="mb-2">
+                        {group.map((msg, mi) => (
+                          <ChatBubble
+                            key={msg.msgId}
+                            msg={msg}
+                            isOwn={isOwn}
+                            showAvatar={!isOwn && mi === group.length - 1}
+                            avatar={other.avatar}
+                            name={other.name}
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </>
               )}
               <div ref={bottomRef} />
             </div>
@@ -322,9 +476,10 @@ export default function Messages() {
             {/* Input */}
             <form
               onSubmit={handleSend}
-              className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-gray-800"
+              className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-gray-800 shrink-0"
             >
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -343,11 +498,11 @@ export default function Messages() {
         ) : (
           <div className="flex-1 hidden md:flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/20 rounded-2xl flex items-center justify-center mb-4">
-              <Send className="w-7 h-7 text-primary-600 dark:text-primary-400" />
+              <MessageCircle className="w-7 h-7 text-primary-600 dark:text-primary-400" />
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Your Messages</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Select a conversation or start a new one
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+              Select a conversation or start a new one to connect with your community
             </p>
           </div>
         )}

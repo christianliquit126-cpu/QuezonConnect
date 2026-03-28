@@ -7,6 +7,8 @@ import {
   User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map, ShieldCheck
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
+import { db } from '../firebase'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 
 const navLinks = [
   { to: '/', label: 'Home', icon: Home },
@@ -16,8 +18,35 @@ const navLinks = [
   { to: '/resources', label: 'Resources', icon: BookOpen },
 ]
 
+function useUnreadMessages(currentUser) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!currentUser) { setCount(0); return }
+    const q = query(
+      collection(db, 'chats'),
+      where('participants', 'array-contains', currentUser.uid)
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      let unread = 0
+      snap.docs.forEach((d) => {
+        const data = d.data()
+        if (
+          data.lastMessage &&
+          data.lastSenderId &&
+          data.lastSenderId !== currentUser.uid
+        ) {
+          unread++
+        }
+      })
+      setCount(unread)
+    })
+    return unsub
+  }, [currentUser])
+  return count
+}
+
 export default function Navbar() {
-  const { isLoggedIn, isAdmin, displayUser, logout } = useAuth()
+  const { isLoggedIn, isAdmin, displayUser, logout, currentUser } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -25,6 +54,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [search, setSearch] = useState('')
   const dropRef = useRef(null)
+  const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
 
   useEffect(() => {
     const handler = (e) => {
@@ -111,18 +141,24 @@ export default function Navbar() {
 
             {isLoggedIn ? (
               <>
-                {/* Messages */}
+                {/* Messages with unread badge */}
                 <Link
                   to="/messages"
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Messages"
                 >
                   <MessageCircle className="w-5 h-5" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
 
                 {/* Notifications */}
                 <NotificationBell />
 
-                {/* Request Help */}
+                {/* Get Help CTA */}
                 <Link to="/get-help" className="hidden sm:flex btn-primary text-sm items-center gap-1.5">
                   <HelpCircle className="w-4 h-4" />
                   Get Help
@@ -230,9 +266,16 @@ export default function Navbar() {
           {isLoggedIn && (
             <Link
               to="/messages"
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
-              <MessageCircle className="w-4 h-4" /> Messages
+              <span className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> Messages
+              </span>
+              {unreadMessages > 0 && (
+                <span className="min-w-[1.25rem] h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-1">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
             </Link>
           )}
         </div>

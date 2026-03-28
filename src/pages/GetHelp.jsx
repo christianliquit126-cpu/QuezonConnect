@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
+import ImageUpload from '../components/ImageUpload'
 
 const CATEGORIES = [
   'Food & Groceries',
@@ -100,6 +101,15 @@ function HelpRequestCard({ req, currentUser, userLocation }) {
         </p>
       </div>
 
+      {req.imageURL && (
+        <img
+          src={req.imageURL}
+          alt="Request"
+          className="w-full rounded-xl object-cover max-h-52"
+          loading="lazy"
+        />
+      )}
+
       <div className="flex items-center flex-wrap gap-3 text-xs text-gray-400">
         {req.location && (
           <span className="flex items-center gap-1">
@@ -157,6 +167,7 @@ export default function GetHelp() {
   const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState('All')
   const [distanceFilter, setDistanceFilter] = useState(false)
+  const [imageUrl, setImageUrl] = useState(null)
 
   useEffect(() => {
     const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
@@ -200,6 +211,7 @@ export default function GetHelp() {
       description: form.description,
       category: form.category,
       location: form.location,
+      imageURL: imageUrl || null,
       lat: location?.lat || displayUser?.lat || null,
       lng: location?.lng || displayUser?.lng || null,
       barangay: address?.barangay || displayUser?.barangay || '',
@@ -213,6 +225,7 @@ export default function GetHelp() {
       category: 'Other',
       location: displayUser?.location || '',
     })
+    setImageUrl(null)
     setShowForm(false)
     setSubmitting(false)
   }
@@ -329,6 +342,19 @@ export default function GetHelp() {
                 )}
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Photo (optional)
+              </label>
+              {imageUrl ? (
+                <ImageUpload
+                  preview={imageUrl}
+                  onRemove={() => setImageUrl(null)}
+                />
+              ) : (
+                <ImageUpload onUpload={(url) => setImageUrl(url)} />
+              )}
+            </div>
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
@@ -340,7 +366,7 @@ export default function GetHelp() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={() => { setShowForm(false); setImageUrl(null) }}
                 className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel
