@@ -50,7 +50,8 @@ src/
     ├── GiveHelp.jsx
     ├── Resources.jsx
     ├── Messages.jsx
-    ├── Profile.jsx     # Location editor with mini-map + QC badge
+    ├── Profile.jsx     # Location editor with mini-map + QC badge + loading/empty states
+    ├── Settings.jsx    # Profile, account, and preferences settings page (NEW)
     └── MapView.jsx     # Full interactive map: places, directions, help requests
 ```
 

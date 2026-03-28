@@ -23,6 +23,7 @@ import {
   Camera,
   Loader2,
   Map,
+  Settings,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { Link } from 'react-router-dom'
@@ -343,17 +344,22 @@ export default function Profile() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
           {[
-            { icon: MessageCircle, label: 'Posts', value: myPosts.length },
-            { icon: Heart, label: 'Requests', value: myRequests.length },
+            { icon: MessageCircle, label: 'Posts', value: myPosts.length, loading: loadingPosts },
+            { icon: Heart, label: 'Requests', value: myRequests.length, loading: loadingPosts },
             {
               icon: CheckCircle2,
               label: 'Completed',
               value: myRequests.filter((r) => r.status === 'completed').length,
+              loading: loadingPosts,
             },
-          ].map(({ icon: Icon, label, value }) => (
+          ].map(({ icon: Icon, label, value, loading }) => (
             <div key={label} className="text-center">
               <Icon className="w-5 h-5 text-primary-600 dark:text-primary-400 mx-auto mb-1" />
-              <p className="text-lg font-bold text-gray-900 dark:text-white">{value}</p>
+              {loading ? (
+                <div className="h-7 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-1" />
+              ) : (
+                <p className="text-lg font-bold text-gray-900 dark:text-white">{value}</p>
+              )}
               <p className="text-xs text-gray-400">{label}</p>
             </div>
           ))}
@@ -371,9 +377,32 @@ export default function Profile() {
       </div>
 
       {/* My posts */}
-      {myPosts.length > 0 && (
-        <div className="card p-5">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-4">My Posts</h2>
+      <div className="card p-5">
+        <h2 className="font-bold text-gray-900 dark:text-white mb-4">
+          My Posts
+          {!loadingPosts && (
+            <span className="ml-2 text-sm font-normal text-gray-400">
+              ({myPosts.length} {myPosts.length === 1 ? 'post' : 'posts'})
+            </span>
+          )}
+        </h2>
+        {loadingPosts ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="flex items-start gap-3 animate-pulse">
+                <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : myPosts.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">
+            No posts yet. Share something with your community!
+          </p>
+        ) : (
           <div className="space-y-3">
             {myPosts.slice(0, 5).map((post) => (
               <div
@@ -399,13 +428,18 @@ export default function Profile() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* My help requests */}
       {myRequests.length > 0 && (
         <div className="card p-5">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-4">My Help Requests</h2>
+          <h2 className="font-bold text-gray-900 dark:text-white mb-4">
+            My Help Requests
+            <span className="ml-2 text-sm font-normal text-gray-400">
+              ({myRequests.length} {myRequests.length === 1 ? 'request' : 'requests'})
+            </span>
+          </h2>
           <div className="space-y-3">
             {myRequests.slice(0, 5).map((req) => (
               <div
@@ -449,13 +483,22 @@ export default function Profile() {
       {/* Account */}
       <div className="card p-5">
         <h2 className="font-bold text-gray-900 dark:text-white mb-3">Account</h2>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </button>
+        <div className="space-y-1">
+          <Link
+            to="/settings"
+            className="flex items-center gap-2 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2 rounded-lg transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors w-full text-left"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+        </div>
       </div>
     </main>
   )

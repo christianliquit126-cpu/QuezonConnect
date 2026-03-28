@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle, Bell,
-  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map, ShieldCheck
+  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map, ShieldCheck, Settings
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -196,6 +196,13 @@ export default function Navbar() {
                         <User className="w-4 h-4" /> My Profile
                       </Link>
                       <Link
+                        to="/settings"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <Settings className="w-4 h-4" /> Settings
+                      </Link>
+                      <Link
                         to="/map"
                         onClick={() => setProfileOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -264,19 +271,27 @@ export default function Navbar() {
             </Link>
           ))}
           {isLoggedIn && (
-            <Link
-              to="/messages"
-              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              <span className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4" /> Messages
-              </span>
-              {unreadMessages > 0 && (
-                <span className="min-w-[1.25rem] h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-1">
-                  {unreadMessages > 9 ? '9+' : unreadMessages}
+            <>
+              <Link
+                to="/messages"
+                className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <span className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" /> Messages
                 </span>
-              )}
-            </Link>
+                {unreadMessages > 0 && (
+                  <span className="min-w-[1.25rem] h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-1">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
+              </Link>
+              <Link
+                to="/settings"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <Settings className="w-4 h-4" /> Settings
+              </Link>
+            </>
           )}
         </div>
       )}

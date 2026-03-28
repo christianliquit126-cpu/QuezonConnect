@@ -15,6 +15,7 @@ import Messages from './pages/Messages'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
 import FirebaseSetup from './components/FirebaseSetup'
+import Settings from './pages/Settings'
 import { Loader2 } from 'lucide-react'
 
 const MapView = lazy(() => import('./pages/MapView'))
@@ -53,6 +54,7 @@ const AppRoutes = () => {
           <Route path="/resources" element={<Resources />} />
           <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/map" element={<MapView />} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />

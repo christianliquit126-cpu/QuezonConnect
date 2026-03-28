@@ -17,7 +17,7 @@ const CATEGORY_CONFIG = [
 
 export default function Categories() {
   const navigate = useNavigate()
-  const [counts, setCounts] = useState({})
+  const [counts, setCounts] = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'posts'), (snap) => {
@@ -36,7 +36,7 @@ export default function Categories() {
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Browse by Category</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {CATEGORY_CONFIG.map(({ icon: Icon, label, color, bg, filter }) => {
-          const count = counts[filter] ?? null
+          const count = counts === null ? null : (counts[filter] ?? 0)
           return (
             <button
               key={label}
@@ -49,8 +49,14 @@ export default function Categories() {
               <p className="text-xs font-medium text-gray-800 dark:text-gray-200 text-center leading-tight">
                 {label}
               </p>
-              <p className="text-xs text-gray-400">
-                {count === null ? '' : count === 0 ? 'No posts' : `${count} post${count === 1 ? '' : 's'}`}
+              <p className="text-xs text-gray-400 min-h-[1rem]">
+                {count === null ? (
+                  <span className="inline-block w-8 h-2.5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                ) : count === 0 ? (
+                  'No posts'
+                ) : (
+                  `${count} post${count === 1 ? '' : 's'}`
+                )}
               </p>
             </button>
           )

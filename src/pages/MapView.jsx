@@ -552,24 +552,18 @@ export default function MapView() {
 
   return (
     <div style={{ display: 'flex', height: mapHeight, overflow: 'hidden' }}>
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — hidden on mobile */}
       <div
-        className="border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900"
-        style={{
-          width: 380,
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+        className="hidden md:flex border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex-col overflow-hidden shrink-0"
+        style={{ width: 380 }}
       >
-        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0 hidden md:block">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <h1 className="text-base font-bold text-gray-900 dark:text-white">Community Map</h1>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
             Quezon City — police, hospitals, resources
           </p>
         </div>
-        <div className="hidden md:flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
           <SidebarContent {...sidebarProps} />
         </div>
       </div>
