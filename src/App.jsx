@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { LocationProvider } from './context/LocationContext'
 import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
@@ -13,6 +14,9 @@ import Resources from './pages/Resources'
 import Messages from './pages/Messages'
 import Profile from './pages/Profile'
 import FirebaseSetup from './components/FirebaseSetup'
+import { Loader2 } from 'lucide-react'
+
+const MapView = lazy(() => import('./pages/MapView'))
 
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn } = useAuth()
@@ -25,17 +29,26 @@ const AppRoutes = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
-        <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
-        <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
-        <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
+            <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+          </div>
+        }
+      >
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
+          <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
+          <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
+          <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/map" element={<MapView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </div>
   )
 }
@@ -52,9 +65,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AppRoutes />
-        </BrowserRouter>
+        <LocationProvider>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <AppRoutes />
+          </BrowserRouter>
+        </LocationProvider>
       </AuthProvider>
     </ThemeProvider>
   )

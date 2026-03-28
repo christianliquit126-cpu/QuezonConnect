@@ -7,8 +7,8 @@ export const useTheme = () => useContext(ThemeContext)
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme')
-    if (saved) return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    if (saved === 'light' || saved === 'dark') return saved
+    return 'dark'
   })
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

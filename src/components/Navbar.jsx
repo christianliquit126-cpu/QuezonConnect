@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle, Bell,
-  User, LogOut, Settings, Moon, Sun, ChevronDown, Menu, X, Search
+  User, LogOut, Moon, Sun, ChevronDown, Menu, X, Search, Map
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 
@@ -12,6 +12,7 @@ const navLinks = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/get-help', label: 'Get Help', icon: HelpCircle },
   { to: '/give-help', label: 'Give Help', icon: Heart },
+  { to: '/map', label: 'Map', icon: Map },
   { to: '/resources', label: 'Resources', icon: BookOpen },
 ]
 
@@ -46,6 +47,13 @@ export default function Navbar() {
     return location.pathname.startsWith(path)
   }
 
+  const handleSearch = (e) => {
+    if (e.key === 'Enter' && search.trim()) {
+      navigate(`/resources?q=${encodeURIComponent(search.trim())}`)
+      setSearch('')
+    }
+  }
+
   return (
     <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -61,7 +69,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-0.5">
             {navLinks.map(({ to, label }) => (
               <Link
                 key={to}
@@ -87,7 +95,8 @@ export default function Navbar() {
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-36"
+                onKeyDown={handleSearch}
+                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-28"
               />
             </div>
 
@@ -105,7 +114,7 @@ export default function Navbar() {
                 {/* Messages */}
                 <Link
                   to="/messages"
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
+                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <MessageCircle className="w-5 h-5" />
                 </Link>
@@ -115,8 +124,8 @@ export default function Navbar() {
 
                 {/* Request Help */}
                 <Link to="/get-help" className="hidden sm:flex btn-primary text-sm items-center gap-1.5">
-                  <MessageCircle className="w-4 h-4" />
-                  Request Help
+                  <HelpCircle className="w-4 h-4" />
+                  Get Help
                 </Link>
 
                 {/* Profile dropdown */}
@@ -134,15 +143,33 @@ export default function Navbar() {
                   </button>
 
                   {profileOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-2">
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-2 z-50">
                       <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                        <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{displayUser?.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{displayUser?.email}</p>
+                        <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                          {displayUser?.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {displayUser?.email}
+                        </p>
                       </div>
-                      <Link to="/profile" onClick={() => setProfileOpen(false)} className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <Link
+                        to="/profile"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
                         <User className="w-4 h-4" /> My Profile
                       </Link>
-                      <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                      <Link
+                        to="/map"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <Map className="w-4 h-4" /> Community Map
+                      </Link>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
                         <LogOut className="w-4 h-4" /> Sign Out
                       </button>
                     </div>
@@ -151,7 +178,10 @@ export default function Navbar() {
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <Link to="/login" className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <Link
+                  to="/login"
+                  className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
                   Sign In
                 </Link>
                 <Link to="/signup" className="btn-primary text-sm">
@@ -189,7 +219,10 @@ export default function Navbar() {
             </Link>
           ))}
           {isLoggedIn && (
-            <Link to="/messages" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+            <Link
+              to="/messages"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
               <MessageCircle className="w-4 h-4" /> Messages
             </Link>
           )}

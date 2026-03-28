@@ -6,6 +6,7 @@ import Categories from '../components/Categories'
 import CommunityFeed from '../components/CommunityFeed'
 import CommunityUpdates from '../components/CommunityUpdates'
 import ActiveVolunteers from '../components/ActiveVolunteers'
+import NearbyHelp from '../components/NearbyHelp'
 
 export default function Home() {
   const { displayUser } = useAuth()
@@ -24,7 +25,7 @@ export default function Home() {
         {/* Quick Actions */}
         <QuickActions />
 
-        {/* Main grid: Feed + Updates */}
+        {/* Main grid: Feed + Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Feed */}
           <div className="lg:col-span-2">
@@ -33,6 +34,7 @@ export default function Home() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            <NearbyHelp />
             <CommunityUpdates />
           </div>
         </div>

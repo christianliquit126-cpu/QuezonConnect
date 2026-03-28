@@ -44,3 +44,114 @@
 .dark .chat-scroll::-webkit-scrollbar-thumb {
   background: #374151;
 }
+
+/* ─── Leaflet overrides ──────────────────────────────────────────────────── */
+
+.leaflet-container {
+  font-family: inherit;
+  outline: none;
+}
+
+/* Attribution */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  font-size: 10px !important;
+  color: #6b7280 !important;
+  border-radius: 6px 0 0 0 !important;
+  padding: 2px 6px !important;
+  backdrop-filter: blur(4px);
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(17, 24, 39, 0.85) !important;
+  color: #9ca3af !important;
+}
+
+.leaflet-control-attribution a {
+  color: #2563eb !important;
+}
+
+.dark .leaflet-control-attribution a {
+  color: #60a5fa !important;
+}
+
+/* Zoom controls */
+.leaflet-bar {
+  border: none !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+.leaflet-bar a {
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  background: #ffffff !important;
+  color: #374151 !important;
+  border: none !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.15s !important;
+}
+
+.leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+
+.leaflet-bar a:hover {
+  background: #f9fafb !important;
+  color: #111827 !important;
+}
+
+.dark .leaflet-bar a {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+  border-bottom-color: #374151 !important;
+}
+
+.dark .leaflet-bar a:hover {
+  background: #374151 !important;
+}
+
+/* Popup */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+  padding: 0 !important;
+  border: 1px solid #f3f4f6;
+}
+
+.dark .leaflet-popup-content-wrapper {
+  background: #1f2937 !important;
+  color: #f9fafb !important;
+  border-color: #374151 !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 16px !important;
+  line-height: 1.5 !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+
+.dark .leaflet-popup-tip {
+  background: #1f2937 !important;
+}
+
+.leaflet-popup-close-button {
+  color: #9ca3af !important;
+  font-size: 16px !important;
+  padding: 8px 10px !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #374151 !important;
+  background: transparent !important;
+}

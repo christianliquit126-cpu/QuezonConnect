@@ -22,17 +22,27 @@ import {
   CheckCircle2,
   Camera,
   Loader2,
+  Map,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { Link } from 'react-router-dom'
+import { useLocationCtx } from '../context/LocationContext'
+import LocationPicker from '../components/LocationPicker'
 
 export default function Profile() {
-  const { displayUser, currentUser, logout, userProfile } = useAuth()
+  const { displayUser, currentUser, logout, userProfile, refreshProfile } = useAuth()
+  const { location: detectedLoc, address: detectedAddr } = useLocationCtx()
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     name: displayUser?.name || '',
     location: displayUser?.location || '',
+    barangay: displayUser?.barangay || '',
+    city: displayUser?.city || '',
+    lat: displayUser?.lat || null,
+    lng: displayUser?.lng || null,
   })
+  const [showMapPicker, setShowMapPicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [myPosts, setMyPosts] = useState([])
   const [myRequests, setMyRequests] = useState([])
@@ -45,17 +55,21 @@ export default function Profile() {
       where('uid', '==', currentUser.uid),
       orderBy('createdAt', 'desc')
     )
-    const unsub1 = onSnapshot(pq, (snap) => {
-      setMyPosts(
-        snap.docs.map((d) => ({
-          postId: d.id,
-          ...d.data(),
-          createdAt: d.data().createdAt?.toDate() || new Date(),
-          likes: d.data().likes || [],
-        }))
-      )
-      setLoadingPosts(false)
-    }, () => setLoadingPosts(false))
+    const unsub1 = onSnapshot(
+      pq,
+      (snap) => {
+        setMyPosts(
+          snap.docs.map((d) => ({
+            postId: d.id,
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate() || new Date(),
+            likes: d.data().likes || [],
+          }))
+        )
+        setLoadingPosts(false)
+      },
+      () => setLoadingPosts(false)
+    )
 
     const rq = query(
       collection(db, 'helpRequests'),
@@ -72,24 +86,66 @@ export default function Profile() {
       )
     })
 
-    return () => { unsub1(); unsub2() }
+    return () => {
+      unsub1()
+      unsub2()
+    }
   }, [currentUser])
 
   const handleSave = async () => {
     if (!currentUser) return
     setSaving(true)
+    const locationStr =
+      form.barangay
+        ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
+        : form.location
     await updateDoc(doc(db, 'users', currentUser.uid), {
       name: form.name,
-      location: form.location,
+      location: locationStr,
+      barangay: form.barangay || '',
+      city: form.city || '',
+      lat: form.lat || null,
+      lng: form.lng || null,
+      isQC: form.city?.toLowerCase().includes('quezon') || false,
+    })
+    await refreshProfile()
+    setEditing(false)
+    setShowMapPicker(false)
+    setSaving(false)
+  }
+
+  const handleCancel = () => {
+    setForm({
+      name: displayUser?.name || '',
+      location: displayUser?.location || '',
+      barangay: displayUser?.barangay || '',
+      city: displayUser?.city || '',
+      lat: displayUser?.lat || null,
+      lng: displayUser?.lng || null,
     })
     setEditing(false)
-    setSaving(false)
+    setShowMapPicker(false)
+  }
+
+  const handleLocationChange = ({ lat, lng, barangay, city, address }) => {
+    setForm((f) => ({
+      ...f,
+      lat,
+      lng,
+      barangay: barangay || f.barangay,
+      city: city || f.city,
+      location: address || f.location,
+    }))
   }
 
   const handleLogout = async () => {
     await logout()
     navigate('/login')
   }
+
+  const locationDisplay = displayUser?.barangay
+    ? `${displayUser.barangay}${displayUser.city ? ', ' + displayUser.city : ''}`
+    : displayUser?.location || ''
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -107,6 +163,7 @@ export default function Profile() {
                 <Camera className="w-3.5 h-3.5" />
               </div>
             </div>
+
             <div>
               {editing ? (
                 <div className="space-y-2">
@@ -117,13 +174,44 @@ export default function Profile() {
                     className="input-field py-1.5 text-sm font-semibold"
                     placeholder="Full name"
                   />
-                  <input
-                    type="text"
-                    value={form.location}
-                    onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                    className="input-field py-1.5 text-sm"
-                    placeholder="Your location"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={form.barangay || form.location}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          barangay: e.target.value,
+                          location: e.target.value,
+                        }))
+                      }
+                      className="input-field py-1.5 text-sm"
+                      placeholder="Barangay / Area"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMapPicker((v) => !v)}
+                      className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 shrink-0"
+                      title="Pick on map"
+                    >
+                      <Map className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {form.city && (
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {form.city}
+                      {form.city?.toLowerCase().includes('quezon') ? (
+                        <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs px-1.5 py-0.5 rounded-full ml-1">
+                          QC
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs px-1.5 py-0.5 rounded-full ml-1">
+                          Outside QC
+                        </span>
+                      )}
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={handleSave}
@@ -134,7 +222,7 @@ export default function Profile() {
                       Save
                     </button>
                     <button
-                      onClick={() => setEditing(false)}
+                      onClick={handleCancel}
                       className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700"
                     >
                       Cancel
@@ -150,16 +238,27 @@ export default function Profile() {
                     <Mail className="w-3.5 h-3.5" />
                     {displayUser?.email}
                   </div>
-                  {displayUser?.location && (
+                  {locationDisplay && (
                     <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                       <MapPin className="w-3.5 h-3.5" />
-                      {displayUser.location}
+                      {locationDisplay}
+                      {displayUser?.isQC === true && (
+                        <span className="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs px-1.5 py-0.5 rounded-full ml-1">
+                          QC
+                        </span>
+                      )}
+                      {displayUser?.isQC === false && (
+                        <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs px-1.5 py-0.5 rounded-full ml-1">
+                          Outside QC
+                        </span>
+                      )}
                     </div>
                   )}
                 </>
               )}
             </div>
           </div>
+
           {!editing && (
             <button
               onClick={() => setEditing(true)}
@@ -169,6 +268,23 @@ export default function Profile() {
             </button>
           )}
         </div>
+
+        {/* Map picker */}
+        {editing && showMapPicker && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <LocationPicker
+              label="Pin your location on the map"
+              value={
+                form.lat
+                  ? { lat: form.lat, lng: form.lng, address: form.location }
+                  : detectedLoc
+                  ? { lat: detectedLoc.lat, lng: detectedLoc.lng }
+                  : undefined
+              }
+              onChange={handleLocationChange}
+            />
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
@@ -187,6 +303,17 @@ export default function Profile() {
               <p className="text-xs text-gray-400">{label}</p>
             </div>
           ))}
+        </div>
+
+        {/* Map shortcut */}
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+          <Link
+            to="/map"
+            className="flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
+            <Map className="w-4 h-4" />
+            View Community Map
+          </Link>
         </div>
       </div>
 
@@ -235,7 +362,7 @@ export default function Profile() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{req.title}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 flex-wrap">
                     <span
                       className={`px-2 py-0.5 rounded-full font-medium ${
                         req.status === 'completed'
@@ -247,6 +374,12 @@ export default function Profile() {
                     >
                       {req.status === 'in_progress' ? 'In Progress' : req.status}
                     </span>
+                    {req.location && (
+                      <span className="flex items-center gap-0.5">
+                        <MapPin className="w-3 h-3" />
+                        {req.location}
+                      </span>
+                    )}
                     <span>{formatDistanceToNow(req.createdAt, { addSuffix: true })}</span>
                   </div>
                 </div>
@@ -256,7 +389,7 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Sign out */}
+      {/* Account */}
       <div className="card p-5">
         <h2 className="font-bold text-gray-900 dark:text-white mb-3">Account</h2>
         <button

@@ -35,6 +35,11 @@ export const AuthProvider = ({ children }) => {
           firebaseUser.photoURL ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(extra.name || 'User')}&background=2563eb&color=fff`,
         location: extra.location || '',
+        barangay: extra.barangay || '',
+        city: extra.city || '',
+        lat: extra.lat || null,
+        lng: extra.lng || null,
+        isQC: extra.isQC !== undefined ? extra.isQC : null,
         createdAt: serverTimestamp(),
       })
     }
@@ -91,6 +96,10 @@ export const AuthProvider = ({ children }) => {
     setUserProfile(null)
   }
 
+  const refreshProfile = async () => {
+    if (currentUser) await fetchUserProfile(currentUser.uid)
+  }
+
   const displayUser = currentUser
     ? {
         uid: currentUser.uid,
@@ -101,6 +110,11 @@ export const AuthProvider = ({ children }) => {
           currentUser.photoURL ||
           `https://ui-avatars.com/api/?name=User&background=2563eb&color=fff`,
         location: userProfile?.location || '',
+        barangay: userProfile?.barangay || '',
+        city: userProfile?.city || '',
+        lat: userProfile?.lat || null,
+        lng: userProfile?.lng || null,
+        isQC: userProfile?.isQC ?? null,
       }
     : null
 
@@ -115,6 +129,7 @@ export const AuthProvider = ({ children }) => {
     loginWithGoogle,
     loginWithFacebook,
     logout,
+    refreshProfile,
   }
 
   return (

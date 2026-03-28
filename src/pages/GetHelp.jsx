@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useLocationCtx } from '../context/LocationContext'
 import { db } from '../firebase'
 import {
   collection,
@@ -19,8 +20,10 @@ import {
   AlertCircle,
   Loader2,
   Inbox,
+  Navigation,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { haversine, formatDistance } from '../data/qcPlaces'
 
 const CATEGORIES = [
   'Food & Groceries',
@@ -52,10 +55,15 @@ const STATUS_STYLES = {
   },
 }
 
-function HelpRequestCard({ req, currentUser }) {
+function HelpRequestCard({ req, currentUser, userLocation }) {
   const status = STATUS_STYLES[req.status] || STATUS_STYLES.pending
   const StatusIcon = status.icon
   const isOwner = currentUser?.uid === req.uid
+
+  const distance =
+    userLocation && req.lat && req.lng
+      ? haversine(userLocation.lat, userLocation.lng, req.lat, req.lng)
+      : null
 
   const handleStatusChange = async (newStatus) => {
     await updateDoc(doc(db, 'helpRequests', req.requestId), { status: newStatus })
@@ -65,7 +73,11 @@ function HelpRequestCard({ req, currentUser }) {
     <div className="card p-5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <img src={req.userAvatar} alt={req.userName} className="w-9 h-9 rounded-full object-cover" />
+          <img
+            src={req.userAvatar}
+            alt={req.userName}
+            className="w-9 h-9 rounded-full object-cover"
+          />
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
             <p className="text-xs text-gray-400">
@@ -92,6 +104,11 @@ function HelpRequestCard({ req, currentUser }) {
         {req.location && (
           <span className="flex items-center gap-1">
             <MapPin className="w-3.5 h-3.5" /> {req.location}
+          </span>
+        )}
+        {distance !== null && (
+          <span className="flex items-center gap-1 text-primary-500 dark:text-primary-400 font-medium">
+            <Navigation className="w-3.5 h-3.5" /> {formatDistance(distance)} away
           </span>
         )}
         <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">
@@ -127,6 +144,7 @@ function HelpRequestCard({ req, currentUser }) {
 
 export default function GetHelp() {
   const { displayUser, currentUser } = useAuth()
+  const { location, address, detect, loading: locLoading } = useLocationCtx()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -138,21 +156,37 @@ export default function GetHelp() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState('All')
+  const [distanceFilter, setDistanceFilter] = useState(false)
 
   useEffect(() => {
     const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(q, (snap) => {
-      setRequests(
-        snap.docs.map((d) => ({
-          requestId: d.id,
-          ...d.data(),
-          createdAt: d.data().createdAt?.toDate() || new Date(),
-        }))
-      )
-      setLoading(false)
-    }, () => setLoading(false))
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setRequests(
+          snap.docs.map((d) => ({
+            requestId: d.id,
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate() || new Date(),
+          }))
+        )
+        setLoading(false)
+      },
+      () => setLoading(false)
+    )
     return unsub
   }, [])
+
+  const useMyLocation = () => {
+    if (!location) {
+      detect()
+      return
+    }
+    const locStr = address?.barangay
+      ? `${address.barangay}, ${address.city || 'QC'}`
+      : `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+    setForm((f) => ({ ...f, location: locStr }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -166,16 +200,34 @@ export default function GetHelp() {
       description: form.description,
       category: form.category,
       location: form.location,
+      lat: location?.lat || displayUser?.lat || null,
+      lng: location?.lng || displayUser?.lng || null,
+      barangay: address?.barangay || displayUser?.barangay || '',
+      city: address?.city || displayUser?.city || '',
       status: 'pending',
       createdAt: serverTimestamp(),
     })
-    setForm({ title: '', description: '', category: 'Other', location: displayUser?.location || '' })
+    setForm({
+      title: '',
+      description: '',
+      category: 'Other',
+      location: displayUser?.location || '',
+    })
     setShowForm(false)
     setSubmitting(false)
   }
 
-  const filtered =
-    filter === 'All' ? requests : requests.filter((r) => r.status === filter)
+  let filtered = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
+  if (distanceFilter && location) {
+    filtered = filtered
+      .filter((r) => r.lat && r.lng)
+      .map((r) => ({
+        ...r,
+        distance: haversine(location.lat, location.lng, r.lat, r.lng),
+      }))
+      .filter((r) => r.distance <= 10)
+      .sort((a, b) => a.distance - b.distance)
+  }
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -247,13 +299,34 @@ export default function GetHelp() {
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Location
                 </label>
-                <input
-                  type="text"
-                  value={form.location}
-                  onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                  placeholder="Your barangay/area"
-                  className="input-field"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={form.location}
+                    onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                    placeholder="Your barangay/area"
+                    className="input-field"
+                  />
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    disabled={locLoading}
+                    title="Use my location"
+                    className="shrink-0 p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-60"
+                  >
+                    {locLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Navigation className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {location && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    Location will be saved with your request
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-3 pt-2">
@@ -278,7 +351,7 @@ export default function GetHelp() {
       )}
 
       {/* Filters */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
         {['All', 'pending', 'in_progress', 'completed'].map((f) => (
           <button
             key={f}
@@ -292,6 +365,19 @@ export default function GetHelp() {
             {f === 'in_progress' ? 'In Progress' : f}
           </button>
         ))}
+        {location && (
+          <button
+            onClick={() => setDistanceFilter((v) => !v)}
+            className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors border ${
+              distanceFilter
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+          >
+            <Navigation className="w-3 h-3" />
+            Within 10 km
+          </button>
+        )}
       </div>
 
       {/* Loading */}
@@ -305,12 +391,21 @@ export default function GetHelp() {
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filtered.map((req) => (
-            <HelpRequestCard key={req.requestId} req={req} currentUser={currentUser} />
+            <HelpRequestCard
+              key={req.requestId}
+              req={req}
+              currentUser={currentUser}
+              userLocation={location}
+            />
           ))}
           {filtered.length === 0 && (
             <div className="col-span-2 card p-10 text-center">
               <Inbox className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No requests found.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
+                {distanceFilter
+                  ? 'No requests within 10 km of your location.'
+                  : 'No requests found.'}
+              </p>
             </div>
           )}
         </div>
