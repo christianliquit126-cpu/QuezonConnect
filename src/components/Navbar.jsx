@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle,
-  Moon, Sun, Menu, X, Search, Settings
+  Moon, Sun, Menu, X, Search, Settings, User, Shield, LogOut
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -46,15 +46,34 @@ function useUnreadMessages(currentUser) {
 }
 
 export default function Navbar() {
-  const { isLoggedIn, displayUser, currentUser } = useAuth()
+  const { isLoggedIn, displayUser, currentUser, isAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [search, setSearch] = useState('')
   const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
+  const dropdownRef = useRef(null)
 
   useEffect(() => setMobileOpen(false), [location.pathname])
+  useEffect(() => setProfileOpen(false), [location.pathname])
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleLogout = async () => {
+    setProfileOpen(false)
+    await logout()
+    navigate('/')
+  }
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'
@@ -148,17 +167,56 @@ export default function Navbar() {
                   Get Help
                 </Link>
 
-                {/* Avatar → Profile */}
-                <Link
-                  to="/profile"
-                  className="flex items-center p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <img
-                    src={displayUser?.avatar}
-                    alt={displayUser?.name}
-                    className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
-                  />
-                </Link>
+                {/* Profile dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() => setProfileOpen(!profileOpen)}
+                    className="flex items-center p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <img
+                      src={displayUser?.avatar}
+                      alt={displayUser?.name}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
+                    />
+                  </button>
+
+                  {profileOpen && (
+                    <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 z-50">
+                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{displayUser?.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{displayUser?.email}</p>
+                      </div>
+                      <Link
+                        to="/profile"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        <User className="w-4 h-4" /> Profile
+                      </Link>
+                      <Link
+                        to="/settings"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        <Settings className="w-4 h-4" /> Settings
+                      </Link>
+                      {isAdmin && (
+                        <Link
+                          to="/admin"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                        >
+                          <Shield className="w-4 h-4" /> Admin Panel
+                        </Link>
+                      )}
+                      <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" /> Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <div className="flex items-center gap-2">
