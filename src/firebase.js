@@ -12,7 +12,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'undefined'
+export const isConfigured =
+  !!firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== 'undefined' &&
+  firebaseConfig.apiKey !== ''
 
 let app, auth, db, storage, googleProvider, facebookProvider
 
@@ -23,8 +26,6 @@ if (isConfigured) {
   storage = getStorage(app)
   googleProvider = new GoogleAuthProvider()
   facebookProvider = new FacebookAuthProvider()
-} else {
-  console.warn('Firebase not configured. Running in demo mode.')
 }
 
-export { auth, db, storage, googleProvider, facebookProvider, isConfigured }
+export { auth, db, storage, googleProvider, facebookProvider }

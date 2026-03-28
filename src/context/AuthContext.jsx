@@ -8,7 +8,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db, googleProvider, facebookProvider, isConfigured } from '../firebase'
+import { auth, db, googleProvider, facebookProvider } from '../firebase'
 
 const AuthContext = createContext()
 
@@ -18,19 +18,10 @@ export const useAuth = () => {
   return ctx
 }
 
-const DEMO_USER = {
-  uid: 'demo-user-001',
-  name: 'Alex Rivera',
-  email: 'alex@example.com',
-  avatar: `https://ui-avatars.com/api/?name=Alex+Rivera&background=2563eb&color=fff`,
-  location: 'Quezon City',
-}
-
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [demoMode, setDemoMode] = useState(false)
 
   const createUserDoc = async (firebaseUser, extra = {}) => {
     const ref = doc(db, 'users', firebaseUser.uid)
@@ -40,7 +31,9 @@ export const AuthProvider = ({ children }) => {
         uid: firebaseUser.uid,
         name: extra.name || firebaseUser.displayName || 'Community Member',
         email: firebaseUser.email,
-        avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(extra.name || 'User')}&background=2563eb&color=fff`,
+        avatar:
+          firebaseUser.photoURL ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(extra.name || 'User')}&background=2563eb&color=fff`,
         location: extra.location || '',
         createdAt: serverTimestamp(),
       })
@@ -50,18 +43,12 @@ export const AuthProvider = ({ children }) => {
   }
 
   const fetchUserProfile = async (uid) => {
-    if (!db) return
     const ref = doc(db, 'users', uid)
     const snap = await getDoc(ref)
     if (snap.exists()) setUserProfile(snap.data())
   }
 
   useEffect(() => {
-    if (!isConfigured) {
-      setDemoMode(true)
-      setLoading(false)
-      return
-    }
     const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user)
       if (user) await fetchUserProfile(user.uid)
@@ -71,27 +58,13 @@ export const AuthProvider = ({ children }) => {
     return unsub
   }, [])
 
-  const loginDemo = () => {
-    setDemoMode(true)
-    setCurrentUser(DEMO_USER)
-    setUserProfile(DEMO_USER)
-  }
-
-  const logoutDemo = () => {
-    setCurrentUser(null)
-    setUserProfile(null)
-    setDemoMode(false)
-  }
-
   const login = async (email, password) => {
-    if (!isConfigured) return loginDemo()
     const cred = await signInWithEmailAndPassword(auth, email, password)
     await fetchUserProfile(cred.user.uid)
     return cred
   }
 
   const signup = async (email, password, name, location = '') => {
-    if (!isConfigured) return loginDemo()
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName: name })
     const profile = await createUserDoc(cred.user, { name, location })
@@ -100,7 +73,6 @@ export const AuthProvider = ({ children }) => {
   }
 
   const loginWithGoogle = async () => {
-    if (!isConfigured) return loginDemo()
     const cred = await signInWithPopup(auth, googleProvider)
     const profile = await createUserDoc(cred.user)
     setUserProfile(profile)
@@ -108,7 +80,6 @@ export const AuthProvider = ({ children }) => {
   }
 
   const loginWithFacebook = async () => {
-    if (!isConfigured) return loginDemo()
     const cred = await signInWithPopup(auth, facebookProvider)
     const profile = await createUserDoc(cred.user)
     setUserProfile(profile)
@@ -116,36 +87,34 @@ export const AuthProvider = ({ children }) => {
   }
 
   const logout = async () => {
-    if (!isConfigured) return logoutDemo()
     await signOut(auth)
     setUserProfile(null)
   }
 
-  const getDisplayUser = () => {
-    if (demoMode) return DEMO_USER
-    if (!currentUser) return null
-    return {
-      uid: currentUser.uid,
-      name: userProfile?.name || currentUser.displayName || 'User',
-      email: currentUser.email,
-      avatar: userProfile?.avatar || currentUser.photoURL || `https://ui-avatars.com/api/?name=User&background=2563eb&color=fff`,
-      location: userProfile?.location || '',
-    }
-  }
+  const displayUser = currentUser
+    ? {
+        uid: currentUser.uid,
+        name: userProfile?.name || currentUser.displayName || 'User',
+        email: currentUser.email,
+        avatar:
+          userProfile?.avatar ||
+          currentUser.photoURL ||
+          `https://ui-avatars.com/api/?name=User&background=2563eb&color=fff`,
+        location: userProfile?.location || '',
+      }
+    : null
 
   const value = {
     currentUser,
     userProfile,
     loading,
-    demoMode,
-    isLoggedIn: !!currentUser || demoMode,
-    displayUser: getDisplayUser(),
+    isLoggedIn: !!currentUser,
+    displayUser,
     login,
     signup,
     loginWithGoogle,
     loginWithFacebook,
     logout,
-    loginDemo,
   }
 
   return (

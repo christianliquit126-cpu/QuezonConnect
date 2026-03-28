@@ -1,33 +1,81 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { db, isConfigured } from '../firebase'
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore'
-import { DEMO_HELP_REQUESTS } from '../data/demoData'
-import { PlusCircle, MapPin, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { db } from '../firebase'
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from 'firebase/firestore'
+import {
+  PlusCircle,
+  MapPin,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Inbox,
+} from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
-const CATEGORIES = ['Food & Groceries', 'Health & Medical', 'School & Supplies', 'Transportation', 'Shelter & Housing', 'Clothing', 'Utilities', 'Community Events', 'Other']
+const CATEGORIES = [
+  'Food & Groceries',
+  'Health & Medical',
+  'School & Supplies',
+  'Transportation',
+  'Shelter & Housing',
+  'Clothing',
+  'Utilities',
+  'Community Events',
+  'Other',
+]
 
 const STATUS_STYLES = {
-  pending: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
-  in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: AlertCircle },
-  completed: { label: 'Completed', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+  pending: {
+    label: 'Pending',
+    cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    icon: Clock,
+  },
+  in_progress: {
+    label: 'In Progress',
+    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    icon: AlertCircle,
+  },
+  completed: {
+    label: 'Completed',
+    cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    icon: CheckCircle2,
+  },
 }
 
-function HelpRequestCard({ req }) {
+function HelpRequestCard({ req, currentUser }) {
   const status = STATUS_STYLES[req.status] || STATUS_STYLES.pending
   const StatusIcon = status.icon
+  const isOwner = currentUser?.uid === req.uid
+
+  const handleStatusChange = async (newStatus) => {
+    await updateDoc(doc(db, 'helpRequests', req.requestId), { status: newStatus })
+  }
+
   return (
     <div className="card p-5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <img src={req.userAvatar} alt={req.userName} className="w-9 h-9 rounded-full" />
+          <img src={req.userAvatar} alt={req.userName} className="w-9 h-9 rounded-full object-cover" />
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
-            <p className="text-xs text-gray-400">{formatDistanceToNow(req.createdAt, { addSuffix: true })}</p>
+            <p className="text-xs text-gray-400">
+              {formatDistanceToNow(req.createdAt, { addSuffix: true })}
+            </p>
           </div>
         </div>
-        <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}>
+        <span
+          className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}
+        >
           <StatusIcon className="w-3 h-3" />
           {status.label}
         </span>
@@ -35,82 +83,113 @@ function HelpRequestCard({ req }) {
 
       <div>
         <h3 className="font-semibold text-gray-900 dark:text-white">{req.title}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{req.description}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+          {req.description}
+        </p>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-gray-400">
-        <span className="flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5" /> {req.location}
+      <div className="flex items-center flex-wrap gap-3 text-xs text-gray-400">
+        {req.location && (
+          <span className="flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5" /> {req.location}
+          </span>
+        )}
+        <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">
+          {req.category}
         </span>
-        <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">{req.category}</span>
       </div>
 
-      <button className="btn-secondary w-full text-sm">Offer Help</button>
+      {isOwner ? (
+        <div className="flex gap-2">
+          {req.status !== 'in_progress' && (
+            <button
+              onClick={() => handleStatusChange('in_progress')}
+              className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+            >
+              Mark In Progress
+            </button>
+          )}
+          {req.status !== 'completed' && (
+            <button
+              onClick={() => handleStatusChange('completed')}
+              className="text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+            >
+              Mark Completed
+            </button>
+          )}
+        </div>
+      ) : (
+        <button className="btn-secondary w-full text-sm">Offer Help</button>
+      )}
     </div>
   )
 }
 
 export default function GetHelp() {
-  const { displayUser } = useAuth()
-  const [requests, setRequests] = useState(DEMO_HELP_REQUESTS)
+  const { displayUser, currentUser } = useAuth()
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', category: 'Other', location: '' })
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    category: 'Other',
+    location: displayUser?.location || '',
+  })
+  const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState('All')
 
   useEffect(() => {
-    if (!isConfigured || !db) return
     const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({
-        requestId: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate() || new Date(),
-      }))
-      if (data.length > 0) setRequests(data)
-    })
+      setRequests(
+        snap.docs.map((d) => ({
+          requestId: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || new Date(),
+        }))
+      )
+      setLoading(false)
+    }, () => setLoading(false))
     return unsub
   }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
-    const newReq = {
-      requestId: `req-${Date.now()}`,
-      uid: displayUser?.uid,
-      userName: displayUser?.name,
-      userAvatar: displayUser?.avatar,
-      ...form,
+    setSubmitting(true)
+    await addDoc(collection(db, 'helpRequests'), {
+      uid: displayUser.uid,
+      userName: displayUser.name,
+      userAvatar: displayUser.avatar,
+      userLocation: displayUser.location || '',
+      title: form.title,
+      description: form.description,
+      category: form.category,
+      location: form.location,
       status: 'pending',
-      createdAt: new Date(),
-    }
-    if (isConfigured && db) {
-      await addDoc(collection(db, 'helpRequests'), {
-        uid: displayUser?.uid,
-        userName: displayUser?.name,
-        userAvatar: displayUser?.avatar,
-        ...form,
-        status: 'pending',
-        createdAt: serverTimestamp(),
-      })
-    } else {
-      setRequests(prev => [newReq, ...prev])
-    }
-    setForm({ title: '', description: '', category: 'Other', location: '' })
+      createdAt: serverTimestamp(),
+    })
+    setForm({ title: '', description: '', category: 'Other', location: displayUser?.location || '' })
     setShowForm(false)
-    setLoading(false)
+    setSubmitting(false)
   }
 
-  const filtered = filter === 'All' ? requests : requests.filter(r => r.status === filter)
+  const filtered =
+    filter === 'All' ? requests : requests.filter((r) => r.status === filter)
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Get Help</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Submit a help request and let the community support you</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Submit a help request and let the community support you
+          </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="btn-primary flex items-center gap-2"
+        >
           <PlusCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Request Help</span>
         </button>
@@ -119,34 +198,78 @@ export default function GetHelp() {
       {/* Form */}
       {showForm && (
         <div className="card p-6 mb-6">
-          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Submit a Help Request</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
+            Submit a Help Request
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Title</label>
-              <input type="text" required value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} placeholder="Brief summary of what you need" className="input-field" />
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Title
+              </label>
+              <input
+                type="text"
+                required
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Brief summary of what you need"
+                className="input-field"
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Description</label>
-              <textarea required value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} placeholder="Describe your situation in detail..." rows={4} className="input-field resize-none" />
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Description
+              </label>
+              <textarea
+                required
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Describe your situation in detail..."
+                rows={4}
+                className="input-field resize-none"
+              />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Category</label>
-                <select value={form.category} onChange={e => setForm(f => ({...f, category: e.target.value}))} className="input-field">
-                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                  className="input-field"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Location</label>
-                <input type="text" value={form.location} onChange={e => setForm(f => ({...f, location: e.target.value}))} placeholder="Your barangay/area" className="input-field" />
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={form.location}
+                  onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                  placeholder="Your barangay/area"
+                  className="input-field"
+                />
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="submit" disabled={loading} className="btn-primary flex items-center gap-2 disabled:opacity-60">
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {loading ? 'Submitting...' : 'Submit Request'}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-primary flex items-center gap-2 disabled:opacity-60"
+              >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {submitting ? 'Submitting...' : 'Submit Request'}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
                 Cancel
               </button>
             </div>
@@ -154,14 +277,16 @@ export default function GetHelp() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex gap-2 mb-5">
-        {['All', 'pending', 'in_progress', 'completed'].map(f => (
+      {/* Filters */}
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+        {['All', 'pending', 'in_progress', 'completed'].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
-              filter === f ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
+              filter === f
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
             {f === 'in_progress' ? 'In Progress' : f}
@@ -169,15 +294,27 @@ export default function GetHelp() {
         ))}
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+        </div>
+      )}
+
       {/* List */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map(req => <HelpRequestCard key={req.requestId} req={req} />)}
-        {filtered.length === 0 && (
-          <div className="col-span-2 card p-8 text-center">
-            <p className="text-gray-400 text-sm">No requests found.</p>
-          </div>
-        )}
-      </div>
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filtered.map((req) => (
+            <HelpRequestCard key={req.requestId} req={req} currentUser={currentUser} />
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-2 card p-10 text-center">
+              <Inbox className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-500 dark:text-gray-400 text-sm">No requests found.</p>
+            </div>
+          )}
+        </div>
+      )}
     </main>
   )
 }

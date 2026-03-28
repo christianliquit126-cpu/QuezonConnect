@@ -1,77 +1,83 @@
 # QC Community — Help & Support Web App
 
 ## Overview
-A full-stack community help and support platform built with **Vite + React** and **Tailwind CSS**, backed by **Firebase**. Designed for the Quezon City community to connect, request help, and offer support.
+A full-stack community help and support platform built with **Vite + React** and **Tailwind CSS**, fully backed by **Firebase** (Firestore real-time, Auth, Storage). No demo mode — requires Firebase to run.
 
 ## Tech Stack
 - **Frontend**: Vite 5, React 18, React Router 6, Tailwind CSS 3
-- **UI Icons**: Lucide React
+- **Icons**: Lucide React
 - **Utilities**: date-fns, clsx
-- **Backend**: Firebase (Auth, Firestore, Storage)
+- **Backend**: Firebase (Auth, Firestore real-time, Storage)
 - **Package Manager**: pnpm
 
 ## Project Structure
 ```
 src/
-├── main.jsx            # Entry point
-├── App.jsx             # Router + providers
-├── firebase.js         # Firebase config (env vars)
-├── index.css           # Tailwind + global styles
+├── main.jsx
+├── App.jsx             # Shows FirebaseSetup if env vars missing, else full app
+├── firebase.js         # Firebase init (isConfigured export)
+├── index.css
 ├── context/
-│   ├── AuthContext.jsx # Firebase auth + demo mode
-│   └── ThemeContext.jsx# Dark/light mode
-├── data/
-│   └── demoData.js     # Demo content (runs without Firebase)
+│   ├── AuthContext.jsx # Firebase Auth (email, Google, Facebook)
+│   └── ThemeContext.jsx
 ├── components/
 │   ├── Navbar.jsx
 │   ├── Hero.jsx
 │   ├── QuickActions.jsx
 │   ├── Categories.jsx
-│   ├── CommunityFeed.jsx
-│   ├── PostCard.jsx
+│   ├── CommunityFeed.jsx   # onSnapshot real-time
+│   ├── PostCard.jsx         # onSnapshot comments
+│   ├── CommunityUpdates.jsx # onSnapshot from /communityUpdates
+│   ├── ActiveVolunteers.jsx # onSnapshot from /volunteers
+│   ├── NotificationBell.jsx # onSnapshot from /notifications
 │   ├── CreatePost.jsx
-│   ├── CommunityUpdates.jsx
-│   ├── ActiveVolunteers.jsx
-│   └── NotificationBell.jsx
+│   └── FirebaseSetup.jsx   # Shown when not configured
 └── pages/
     ├── Home.jsx
     ├── Login.jsx
     ├── SignUp.jsx
-    ├── GetHelp.jsx
-    ├── GiveHelp.jsx
+    ├── GetHelp.jsx     # onSnapshot /helpRequests
+    ├── GiveHelp.jsx    # onSnapshot /volunteers + /helpRequests
     ├── Resources.jsx
-    ├── Messages.jsx
-    └── Profile.jsx
+    ├── Messages.jsx    # onSnapshot real-time chat
+    └── Profile.jsx     # onSnapshot user's own posts/requests
 ```
 
-## Firebase Setup
-1. Create a Firebase project at https://console.firebase.google.com
-2. Enable Authentication (Email/Password, Google, Facebook)
-3. Enable Firestore Database
-4. Enable Storage
-5. Copy `.env.example` to `.env` and fill in your Firebase credentials:
-   - `VITE_FIREBASE_API_KEY`
-   - `VITE_FIREBASE_AUTH_DOMAIN`
-   - `VITE_FIREBASE_PROJECT_ID`
-   - `VITE_FIREBASE_STORAGE_BUCKET`
-   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-   - `VITE_FIREBASE_APP_ID`
+## Firestore Collections
+| Collection | Purpose |
+|---|---|
+| `users` | User profiles |
+| `posts` | Community posts |
+| `posts/{id}/comments` | Post comments (subcollection) |
+| `helpRequests` | Help request submissions |
+| `chats` | Chat room metadata |
+| `chats/{id}/messages` | Chat messages (subcollection) |
+| `notifications` | User notifications |
+| `volunteers` | Registered volunteers |
+| `communityUpdates` | Admin-posted updates |
 
-## Demo Mode
-Without Firebase configured, the app runs in demo mode with pre-loaded sample content. Login uses a demo user account automatically.
+## Firebase Setup (via Shell)
+```bash
+echo "VITE_FIREBASE_API_KEY=your_value" >> .env
+echo "VITE_FIREBASE_AUTH_DOMAIN=your_value" >> .env
+echo "VITE_FIREBASE_PROJECT_ID=your_value" >> .env
+echo "VITE_FIREBASE_STORAGE_BUCKET=your_value" >> .env
+echo "VITE_FIREBASE_MESSAGING_SENDER_ID=your_value" >> .env
+echo "VITE_FIREBASE_APP_ID=your_value" >> .env
+kill 1   # restart to pick up env vars
+```
 
-## Firestore Data Structure
-- `users/{uid}`: uid, name, email, avatar, location, createdAt
-- `posts/{postId}`: uid, userName, userAvatar, content, category, imageURL, likes, commentCount, createdAt
-- `helpRequests/{requestId}`: uid, title, description, category, location, status, createdAt
-- `chats/{chatId}`: participants, messages
+## Authentication
+- Email + Password
+- Google OAuth
+- Facebook OAuth
+- All require Firebase Auth to be configured
 
 ## Dev Server
-- Host: 0.0.0.0
-- Port: 5000
+- Host: 0.0.0.0, Port: 5000
 - Command: `pnpm run dev`
 
 ## Deployment
-- Vercel-ready (Vite build, env vars via VITE_ prefix)
-- Build command: `pnpm run build`
-- Output: `dist/`
+- Static site deployment (Vite SPA)
+- Build: `pnpm run build` → outputs `dist/`
+- Vercel: set all `VITE_*` env vars in Vercel project settings

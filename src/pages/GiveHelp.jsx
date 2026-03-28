@@ -1,33 +1,101 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Heart, Award, Users, MapPin, ChevronRight } from 'lucide-react'
-import { DEMO_VOLUNTEERS } from '../data/demoData'
-import { DEMO_HELP_REQUESTS } from '../data/demoData'
-import { formatDistanceToNow } from 'date-fns'
+import { db } from '../firebase'
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+} from 'firebase/firestore'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { formatDistanceToNow } from 'date-fns'
+
+const SKILL_OPTIONS = [
+  'Medical/Health',
+  'Education/Tutoring',
+  'Food Preparation',
+  'Transportation',
+  'Construction/Repair',
+  'Counseling',
+  'Admin/Clerical',
+  'Other',
+]
 
 export default function GiveHelp() {
-  const { displayUser } = useAuth()
-  const [selected, setSelected] = useState(null)
+  const { displayUser, currentUser } = useAuth()
   const [skills, setSkills] = useState([])
+  const [volunteers, setVolunteers] = useState([])
+  const [openRequests, setOpenRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [registered, setRegistered] = useState(false)
 
-  const SKILL_OPTIONS = ['Medical/Health', 'Education/Tutoring', 'Food Preparation', 'Transportation', 'Construction/Repair', 'Counseling', 'Admin/Clerical', 'Other']
+  useEffect(() => {
+    const vq = query(collection(db, 'volunteers'), orderBy('helpCount', 'desc'))
+    const unsub1 = onSnapshot(vq, (snap) => {
+      setVolunteers(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      )
+    })
 
-  const toggleSkill = (s) => setSkills(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
+    const rq = query(
+      collection(db, 'helpRequests'),
+      where('status', '!=', 'completed'),
+      orderBy('status'),
+      orderBy('createdAt', 'desc')
+    )
+    const unsub2 = onSnapshot(rq, (snap) => {
+      setOpenRequests(
+        snap.docs.map((d) => ({
+          requestId: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || new Date(),
+        }))
+      )
+      setLoading(false)
+    }, () => setLoading(false))
+
+    return () => { unsub1(); unsub2() }
+  }, [])
+
+  const toggleSkill = (s) =>
+    setSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
+
+  const handleRegister = async () => {
+    if (!skills.length || !displayUser) return
+    setSaving(true)
+    await addDoc(collection(db, 'volunteers'), {
+      uid: displayUser.uid,
+      name: displayUser.name,
+      avatar: displayUser.avatar,
+      skills,
+      helpCount: 0,
+      online: true,
+      createdAt: serverTimestamp(),
+    })
+    setRegistered(true)
+    setSaving(false)
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Give Help</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Your time and skills can make a real difference in someone's life</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Your time and skills can make a real difference in someone's life
+        </p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { icon: Users, label: 'Active Volunteers', value: '248' },
-          { icon: Heart, label: 'People Helped', value: '1,432' },
-          { icon: Award, label: 'Help Sessions', value: '3,891' },
+          { icon: Users, label: 'Active Volunteers', value: volunteers.length },
+          { icon: Heart, label: 'People Helped', value: volunteers.reduce((a, v) => a + (v.helpCount || 0), 0) },
+          { icon: Award, label: 'Open Requests', value: openRequests.length },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="card p-4 text-center">
             <div className="w-10 h-10 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center mx-auto mb-2">
@@ -40,73 +108,151 @@ export default function GiveHelp() {
       </div>
 
       {/* Register as volunteer */}
-      <div className="card p-6">
-        <h2 className="font-bold text-gray-900 dark:text-white mb-1">Register as a Volunteer</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Let the community know how you can help</p>
-        <div>
-          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Select your skills</p>
-          <div className="flex flex-wrap gap-2">
-            {SKILL_OPTIONS.map(s => (
-              <button
-                key={s}
-                onClick={() => toggleSkill(s)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  skills.includes(s)
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+      {!registered ? (
+        <div className="card p-6">
+          <h2 className="font-bold text-gray-900 dark:text-white mb-1">Register as a Volunteer</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Let the community know how you can help
+          </p>
+          <div className="mb-4">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select your skills
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {SKILL_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => toggleSkill(s)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    skills.includes(s)
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={handleRegister}
+            disabled={!skills.length || saving}
+            className="btn-primary disabled:opacity-60 flex items-center gap-2"
+          >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            Register as Volunteer
+          </button>
+        </div>
+      ) : (
+        <div className="card p-6 flex items-center gap-4 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
+          <Award className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-200">
+              You're registered as a volunteer!
+            </p>
+            <p className="text-sm text-green-600 dark:text-green-400 mt-0.5">
+              Skills: {skills.join(', ')}
+            </p>
           </div>
         </div>
-        <button className="btn-primary mt-4">Register as Volunteer</button>
-      </div>
+      )}
 
-      {/* Open requests to help with */}
+      {/* Open requests */}
       <div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Help Requests Needing Volunteers</h2>
-        <div className="space-y-3">
-          {DEMO_HELP_REQUESTS.filter(r => r.status !== 'completed').map(req => (
-            <div key={req.requestId} className="card p-4 flex items-start justify-between gap-4 hover:border-primary-200 dark:hover:border-primary-800 transition-colors">
-              <div className="flex items-start gap-3">
-                <img src={req.userAvatar} alt={req.userName} className="w-9 h-9 rounded-full shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm text-gray-900 dark:text-white">{req.title}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{req.description}</p>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                    <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.location}</span>
-                    <span>{req.category}</span>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          Help Requests Needing Volunteers
+        </h2>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {openRequests.slice(0, 5).map((req) => (
+              <div
+                key={req.requestId}
+                className="card p-4 flex items-start justify-between gap-4 hover:border-primary-200 dark:hover:border-primary-800 transition-colors"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <img
+                    src={req.userAvatar}
+                    alt={req.userName}
+                    className="w-9 h-9 rounded-full shrink-0 mt-0.5 object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                      {req.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                      {req.description}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
+                      {req.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {req.location}
+                        </span>
+                      )}
+                      <span>{req.category}</span>
+                    </div>
                   </div>
                 </div>
+                <Link
+                  to="/get-help"
+                  className="btn-primary text-xs shrink-0 px-3 py-1.5"
+                >
+                  Help
+                </Link>
               </div>
-              <button className="btn-primary text-xs shrink-0 px-3 py-1.5">Help</button>
-            </div>
-          ))}
-        </div>
-        <Link to="/get-help" className="flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 mt-3 hover:underline font-medium">
+            ))}
+            {openRequests.length === 0 && (
+              <div className="card p-8 text-center">
+                <p className="text-gray-400 text-sm">No open requests right now. Check back soon!</p>
+              </div>
+            )}
+          </div>
+        )}
+        <Link
+          to="/get-help"
+          className="flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 mt-3 hover:underline font-medium"
+        >
           View all requests <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
 
-      {/* Current volunteers */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Meet Our Volunteers</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {DEMO_VOLUNTEERS.map(v => (
-            <div key={v.uid} className="card p-4 flex flex-col items-center text-center gap-2">
-              <div className="relative">
-                <img src={v.avatar} alt={v.name} className="w-14 h-14 rounded-full object-cover" />
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${v.online ? 'bg-green-400' : 'bg-gray-300'}`} />
+      {/* Volunteers */}
+      {volunteers.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            Meet Our Volunteers
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {volunteers.slice(0, 8).map((v) => (
+              <div key={v.id} className="card p-4 flex flex-col items-center text-center gap-2">
+                <div className="relative">
+                  <img
+                    src={v.avatar}
+                    alt={v.name}
+                    className="w-14 h-14 rounded-full object-cover"
+                  />
+                  <span
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
+                      v.online ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{v.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {v.skills?.join(', ')}
+                </p>
+                <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
+                  {v.helpCount} helped
+                </p>
               </div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{v.name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{v.skill}</p>
-              <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">{v.helpCount} helped</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   )
 }

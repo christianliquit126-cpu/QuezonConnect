@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -11,6 +12,7 @@ import GiveHelp from './pages/GiveHelp'
 import Resources from './pages/Resources'
 import Messages from './pages/Messages'
 import Profile from './pages/Profile'
+import FirebaseSetup from './components/FirebaseSetup'
 
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn } = useAuth()
@@ -39,6 +41,14 @@ const AppRoutes = () => {
 }
 
 export default function App() {
+  if (!isConfigured) {
+    return (
+      <ThemeProvider>
+        <FirebaseSetup />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider>
       <AuthProvider>

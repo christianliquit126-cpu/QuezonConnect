@@ -1,78 +1,82 @@
 import React, { useState, useEffect } from 'react'
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore'
-import { db, isConfigured } from '../firebase'
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  increment,
+} from 'firebase/firestore'
+import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
-import { DEMO_POSTS } from '../data/demoData'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Inbox } from 'lucide-react'
+
+const FILTERS = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Community Events', 'Transportation']
 
 export default function CommunityFeed() {
   const { displayUser, isLoggedIn } = useAuth()
-  const [posts, setPosts] = useState(DEMO_POSTS)
-  const [loading, setLoading] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
 
-  const FILTERS = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Community Events']
-
   useEffect(() => {
-    if (!isConfigured || !db) return
-    setLoading(true)
     const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map(d => ({
-        postId: d.id,
-        ...d.data(),
-        createdAt: d.data().createdAt?.toDate() || new Date(),
-      }))
-      if (fetched.length > 0) setPosts(fetched)
-      setLoading(false)
-    }, () => setLoading(false))
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const data = snap.docs.map((d) => ({
+          postId: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || new Date(),
+          likes: d.data().likes || [],
+        }))
+        setPosts(data)
+        setLoading(false)
+      },
+      () => setLoading(false)
+    )
     return unsub
   }, [])
 
-  const handleCreatePost = async ({ content, category }) => {
-    const newPost = {
-      postId: `demo-${Date.now()}`,
-      uid: displayUser?.uid,
-      userName: displayUser?.name,
-      userAvatar: displayUser?.avatar,
-      userLocation: displayUser?.location,
+  const handleCreatePost = async ({ content, category, imageURL = null }) => {
+    await addDoc(collection(db, 'posts'), {
+      uid: displayUser.uid,
+      userName: displayUser.name,
+      userAvatar: displayUser.avatar,
+      userLocation: displayUser.location || '',
       content,
       category,
-      imageURL: null,
-      likes: 0,
+      imageURL,
+      likes: [],
       commentCount: 0,
-      createdAt: new Date(),
-      liked: false,
-    }
-
-    if (isConfigured && db) {
-      await addDoc(collection(db, 'posts'), {
-        uid: displayUser?.uid,
-        userName: displayUser?.name,
-        userAvatar: displayUser?.avatar,
-        userLocation: displayUser?.location,
-        content,
-        category,
-        imageURL: null,
-        likes: 0,
-        commentCount: 0,
-        createdAt: serverTimestamp(),
-      })
-    } else {
-      setPosts(prev => [newPost, ...prev])
-    }
+      createdAt: serverTimestamp(),
+    })
   }
 
-  const filtered = filter === 'All' ? posts : posts.filter(p => p.category === filter)
+  const handleLike = async (postId) => {
+    const ref = doc(db, 'posts', postId)
+    const post = posts.find((p) => p.postId === postId)
+    const liked = post?.likes?.includes(displayUser.uid)
+    await updateDoc(ref, {
+      likes: liked ? arrayRemove(displayUser.uid) : arrayUnion(displayUser.uid),
+    })
+  }
+
+  const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter)
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">Community Feed</h2>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
-          {FILTERS.map(f => (
+          {FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -91,20 +95,26 @@ export default function CommunityFeed() {
       {isLoggedIn && <CreatePost currentUser={displayUser} onSubmit={handleCreatePost} />}
 
       {loading && (
-        <div className="flex justify-center py-8">
+        <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
         </div>
       )}
 
-      {filtered.map(post => (
-        <PostCard key={post.postId} post={post} currentUser={displayUser} />
-      ))}
-
-      {filtered.length === 0 && !loading && (
-        <div className="card p-8 text-center">
-          <p className="text-gray-400 text-sm">No posts in this category yet.</p>
+      {!loading && filtered.length === 0 && (
+        <div className="card p-10 text-center space-y-2">
+          <Inbox className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No posts yet. Be the first to share!</p>
         </div>
       )}
+
+      {filtered.map((post) => (
+        <PostCard
+          key={post.postId}
+          post={post}
+          currentUser={displayUser}
+          onLike={handleLike}
+        />
+      ))}
     </div>
   )
 }
