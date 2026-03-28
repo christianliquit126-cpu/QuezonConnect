@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { db } from '../firebase'
 import {
   collection,
@@ -24,12 +24,21 @@ import {
   Loader2,
   Map,
   Settings,
+  Clock,
+  AlertCircle,
+  FileText,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { Link } from 'react-router-dom'
 import { useLocationCtx } from '../context/LocationContext'
 import LocationPicker from '../components/LocationPicker'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
+import clsx from 'clsx'
+
+const STATUS_STYLES = {
+  pending: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
+  in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: AlertCircle },
+  completed: { label: 'Completed', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+}
 
 export default function Profile() {
   const { displayUser, currentUser, logout, userProfile, refreshProfile } = useAuth()
@@ -48,25 +57,32 @@ export default function Profile() {
   })
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Unified "my activity" combining posts + help requests
   const [myPosts, setMyPosts] = useState([])
   const [myRequests, setMyRequests] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
+  const [loadingRequests, setLoadingRequests] = useState(true)
+
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarProgress, setAvatarProgress] = useState(0)
 
   useEffect(() => {
     if (!currentUser) return
+
+    // Community posts listener
     const pq = query(
       collection(db, 'posts'),
       where('uid', '==', currentUser.uid),
       orderBy('createdAt', 'desc')
     )
-    const unsub1 = onSnapshot(
+    const unsubPosts = onSnapshot(
       pq,
       (snap) => {
         setMyPosts(
           snap.docs.map((d) => ({
-            postId: d.id,
+            id: d.id,
+            type: 'post',
             ...d.data(),
             createdAt: d.data().createdAt?.toDate() || new Date(),
             likes: d.data().likes || [],
@@ -77,23 +93,41 @@ export default function Profile() {
       () => setLoadingPosts(false)
     )
 
+    // Help requests listener
     const rq = query(
       collection(db, 'helpRequests'),
       where('uid', '==', currentUser.uid),
       orderBy('createdAt', 'desc')
     )
-    const unsub2 = onSnapshot(rq, (snap) => {
-      setMyRequests(
-        snap.docs.map((d) => ({
-          requestId: d.id,
-          ...d.data(),
-          createdAt: d.data().createdAt?.toDate() || new Date(),
-        }))
-      )
-    })
+    const unsubRequests = onSnapshot(
+      rq,
+      (snap) => {
+        setMyRequests(
+          snap.docs.map((d) => ({
+            id: d.id,
+            type: 'request',
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate() || new Date(),
+          }))
+        )
+        setLoadingRequests(false)
+      },
+      () => setLoadingRequests(false)
+    )
 
-    return () => { unsub1(); unsub2() }
+    return () => {
+      unsubPosts()
+      unsubRequests()
+    }
   }, [currentUser])
+
+  // Combined and sorted by date descending
+  const allActivity = [...myPosts, ...myRequests].sort(
+    (a, b) => b.createdAt - a.createdAt
+  )
+
+  const isLoadingAll = loadingPosts || loadingRequests
+  const completedRequests = myRequests.filter((r) => r.status === 'completed').length
 
   const handleAvatarClick = () => {
     if (!avatarUploading) fileInputRef.current?.click()
@@ -163,6 +197,15 @@ export default function Profile() {
   const handleLogout = async () => {
     await logout()
     navigate('/login')
+  }
+
+  // Navigate to the correct page when clicking an activity item
+  const handleActivityClick = (item) => {
+    if (item.type === 'post') {
+      navigate('/')
+    } else {
+      navigate('/get-help')
+    }
   }
 
   const locationDisplay = displayUser?.barangay
@@ -344,18 +387,13 @@ export default function Profile() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
           {[
-            { icon: MessageCircle, label: 'Posts', value: myPosts.length, loading: loadingPosts },
-            { icon: Heart, label: 'Requests', value: myRequests.length, loading: loadingPosts },
-            {
-              icon: CheckCircle2,
-              label: 'Completed',
-              value: myRequests.filter((r) => r.status === 'completed').length,
-              loading: loadingPosts,
-            },
-          ].map(({ icon: Icon, label, value, loading }) => (
+            { icon: MessageCircle, label: 'Posts', value: myPosts.length },
+            { icon: Heart, label: 'Requests', value: myRequests.length },
+            { icon: CheckCircle2, label: 'Completed', value: completedRequests },
+          ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="text-center">
               <Icon className="w-5 h-5 text-primary-600 dark:text-primary-400 mx-auto mb-1" />
-              {loading ? (
+              {isLoadingAll ? (
                 <div className="h-7 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-1" />
               ) : (
                 <p className="text-lg font-bold text-gray-900 dark:text-white">{value}</p>
@@ -376,109 +414,139 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* My posts */}
+      {/* My Activity — combined posts + help requests */}
       <div className="card p-5">
-        <h2 className="font-bold text-gray-900 dark:text-white mb-4">
-          My Posts
-          {!loadingPosts && (
-            <span className="ml-2 text-sm font-normal text-gray-400">
-              ({myPosts.length} {myPosts.length === 1 ? 'post' : 'posts'})
-            </span>
-          )}
-        </h2>
-        {loadingPosts ? (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-900 dark:text-white">
+            My Posts
+            {!isLoadingAll && (
+              <span className="ml-2 text-sm font-normal text-gray-400">
+                ({allActivity.length} {allActivity.length === 1 ? 'item' : 'items'})
+              </span>
+            )}
+          </h2>
+        </div>
+
+        {isLoadingAll ? (
           <div className="space-y-3">
-            {[1, 2].map((i) => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="flex items-start gap-3 animate-pulse">
                 <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg shrink-0" />
                 <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4" />
                   <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
                   <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
                 </div>
               </div>
             ))}
           </div>
-        ) : myPosts.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">
-            No posts yet. Share something with your community!
-          </p>
+        ) : allActivity.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-400 dark:text-gray-500">
+              No posts or help requests yet.
+            </p>
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <Link to="/" className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                Create a post
+              </Link>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <Link to="/get-help" className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                Request help
+              </Link>
+            </div>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {myPosts.slice(0, 5).map((post) => (
-              <div
-                key={post.postId}
-                className="flex items-start gap-3 pb-3 border-b border-gray-50 dark:border-gray-800 last:border-0 last:pb-0"
-              >
-                <div className="w-8 h-8 bg-primary-50 dark:bg-primary-900/20 rounded-lg flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                    {post.content}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
-                    <span>{post.likes?.length || 0} likes</span>
-                    <span>{post.commentCount || 0} comments</span>
-                    <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                      {post.category}
-                    </span>
-                    <span>{formatDistanceToNow(post.createdAt, { addSuffix: true })}</span>
+          <div className="space-y-2">
+            {allActivity.map((item) => {
+              const isPost = item.type === 'post'
+              const statusInfo = !isPost ? (STATUS_STYLES[item.status] || STATUS_STYLES.pending) : null
+
+              return (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  onClick={() => handleActivityClick(item)}
+                  className="w-full text-left flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors group"
+                >
+                  {/* Icon */}
+                  <div
+                    className={clsx(
+                      'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5',
+                      isPost
+                        ? 'bg-primary-50 dark:bg-primary-900/20'
+                        : 'bg-orange-50 dark:bg-orange-900/20'
+                    )}
+                  >
+                    {isPost ? (
+                      <MessageCircle className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                    ) : (
+                      <Heart className="w-4 h-4 text-orange-500" />
+                    )}
                   </div>
-                </div>
-              </div>
-            ))}
+
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    {/* Type label */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={clsx(
+                          'text-xs font-semibold px-2 py-0.5 rounded-full',
+                          isPost
+                            ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                        )}
+                      >
+                        {isPost ? 'Community Post' : 'Help Request'}
+                      </span>
+                      {!isPost && statusInfo && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.cls}`}>
+                          {statusInfo.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Title / Content */}
+                    {!isPost && item.title && (
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {item.title}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-snug">
+                      {isPost ? item.content : item.description}
+                    </p>
+
+                    {/* Meta */}
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400 flex-wrap">
+                      {isPost ? (
+                        <>
+                          <span>{item.likes?.length || 0} likes</span>
+                          <span>{item.commentCount || 0} comments</span>
+                        </>
+                      ) : (
+                        item.location && (
+                          <span className="flex items-center gap-0.5">
+                            <MapPin className="w-3 h-3" />
+                            {item.location}
+                          </span>
+                        )
+                      )}
+                      {item.category && (
+                        <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                          {item.category}
+                        </span>
+                      )}
+                      <span>{formatDistanceToNow(item.createdAt, { addSuffix: true })}</span>
+                      <span className="ml-auto text-primary-500 dark:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium">
+                        View →
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
-
-      {/* My help requests */}
-      {myRequests.length > 0 && (
-        <div className="card p-5">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-4">
-            My Help Requests
-            <span className="ml-2 text-sm font-normal text-gray-400">
-              ({myRequests.length} {myRequests.length === 1 ? 'request' : 'requests'})
-            </span>
-          </h2>
-          <div className="space-y-3">
-            {myRequests.slice(0, 5).map((req) => (
-              <div
-                key={req.requestId}
-                className="flex items-start gap-3 pb-3 border-b border-gray-50 dark:border-gray-800 last:border-0 last:pb-0"
-              >
-                <div className="w-8 h-8 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center shrink-0">
-                  <Heart className="w-4 h-4 text-orange-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                    {req.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 flex-wrap">
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-medium ${
-                        req.status === 'completed'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : req.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                      }`}
-                    >
-                      {req.status === 'in_progress' ? 'In Progress' : req.status || 'Pending'}
-                    </span>
-                    {req.location && (
-                      <span className="flex items-center gap-0.5">
-                        <MapPin className="w-3 h-3" />
-                        {req.location}
-                      </span>
-                    )}
-                    <span>{formatDistanceToNow(req.createdAt, { addSuffix: true })}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Account */}
       <div className="card p-5">

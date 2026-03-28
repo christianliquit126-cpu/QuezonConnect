@@ -17,30 +17,54 @@ const CATEGORY_CONFIG = [
 
 export default function Categories() {
   const navigate = useNavigate()
-  const [counts, setCounts] = useState(null)
+  // null = still loading, object = loaded
+  const [postCounts, setPostCounts] = useState(null)
+  const [requestCounts, setRequestCounts] = useState(null)
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'posts'), (snap) => {
+    // Count from community posts
+    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
       const tally = {}
       snap.docs.forEach((d) => {
         const cat = d.data().category
         if (cat) tally[cat] = (tally[cat] || 0) + 1
       })
-      setCounts(tally)
+      setPostCounts(tally)
     })
-    return unsub
+
+    // Count from help requests
+    const unsubRequests = onSnapshot(collection(db, 'helpRequests'), (snap) => {
+      const tally = {}
+      snap.docs.forEach((d) => {
+        const cat = d.data().category
+        if (cat) tally[cat] = (tally[cat] || 0) + 1
+      })
+      setRequestCounts(tally)
+    })
+
+    return () => {
+      unsubPosts()
+      unsubRequests()
+    }
   }, [])
+
+  const isLoading = postCounts === null || requestCounts === null
+
+  const getTotal = (filter) => {
+    if (isLoading) return null
+    return (postCounts[filter] || 0) + (requestCounts[filter] || 0)
+  }
 
   return (
     <section>
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Browse by Category</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {CATEGORY_CONFIG.map(({ icon: Icon, label, color, bg, filter }) => {
-          const count = counts === null ? null : (counts[filter] ?? 0)
+          const count = getTotal(filter)
           return (
             <button
               key={label}
-              onClick={() => navigate(`/get-help`)}
+              onClick={() => navigate('/get-help')}
               className="card p-4 flex flex-col items-center gap-2 hover:border-primary-200 dark:hover:border-primary-800 transition-colors group"
             >
               <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center`}>
