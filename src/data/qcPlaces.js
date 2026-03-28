@@ -232,6 +232,11 @@ export const haversine = (lat1, lng1, lat2, lng2) => {
 }
 
 export const formatDistance = (km) => {
+  if (km < 1) return `${Math.round(km * 1000)} m away`
+  return `${km.toFixed(1)} km away`
+}
+
+export const formatDistanceShort = (km) => {
   if (km < 1) return `${Math.round(km * 1000)} m`
   return `${km.toFixed(1)} km`
 }
@@ -248,3 +253,15 @@ export const QC_CENTER = { lat: 14.676, lng: 121.0437 }
 
 export const isInQC = (lat, lng) =>
   lat >= 14.55 && lat <= 14.80 && lng >= 120.95 && lng <= 121.15
+
+/**
+ * Given a user location and optional type filter, return places sorted by
+ * distance (nearest first), limited to `limit` entries.
+ */
+export const getSortedNearbyPlaces = (userLat, userLng, typeFilter = 'all', limit = 10) => {
+  const source = typeFilter === 'all' ? QC_PLACES : QC_PLACES.filter((p) => p.type === typeFilter)
+  return source
+    .map((p) => ({ ...p, distance: haversine(userLat, userLng, p.lat, p.lng) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit)
+}

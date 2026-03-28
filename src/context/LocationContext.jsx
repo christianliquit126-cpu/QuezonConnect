@@ -17,9 +17,7 @@ export const LocationProvider = ({ children }) => {
     if (attempted.current) return
     attempted.current = true
     if (!navigator.geolocation) return
-    if (!navigator.permissions) {
-      return
-    }
+    if (!navigator.permissions) return
     navigator.permissions
       .query({ name: 'geolocation' })
       .then((status) => {

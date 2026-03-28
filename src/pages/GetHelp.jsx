@@ -118,7 +118,7 @@ function HelpRequestCard({ req, currentUser, userLocation }) {
         )}
         {distance !== null && (
           <span className="flex items-center gap-1 text-primary-500 dark:text-primary-400 font-medium">
-            <Navigation className="w-3.5 h-3.5" /> {formatDistance(distance)} away
+            <Navigation className="w-3.5 h-3.5" /> {formatDistance(distance)}
           </span>
         )}
         <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">

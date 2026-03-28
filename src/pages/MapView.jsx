@@ -2,6 +2,8 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
+  useMemo,
 } from 'react'
 import {
   MapContainer,
@@ -23,8 +25,10 @@ import {
   PLACE_TYPE_FILTERS,
   haversine,
   formatDistance,
+  formatDistanceShort,
   formatDuration,
   QC_CENTER,
+  getSortedNearbyPlaces,
 } from '../data/qcPlaces'
 import {
   MapPin,
@@ -32,16 +36,19 @@ import {
   Loader2,
   AlertCircle,
   ChevronRight,
-  ChevronLeft,
   X,
   Phone,
   Route,
   Clock,
-  ArrowLeft,
   SlidersHorizontal,
+  RefreshCw,
+  CheckCircle,
+  ExternalLink,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import clsx from 'clsx'
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
 
 const USER_ICON = L.divIcon({
   className: '',
@@ -65,7 +72,9 @@ const createPlaceIcon = (type, selected = false) => {
   }
   const color = colors[type] || '#6b7280'
   const size = selected ? 18 : 13
-  const ring = selected ? `box-shadow:0 0 0 4px ${color}33, 0 2px 8px rgba(0,0,0,0.4);` : 'box-shadow:0 1px 4px rgba(0,0,0,0.3);'
+  const ring = selected
+    ? `box-shadow:0 0 0 4px ${color}33, 0 2px 8px rgba(0,0,0,0.4);`
+    : 'box-shadow:0 1px 4px rgba(0,0,0,0.3);'
   return L.divIcon({
     className: '',
     html: `<div style="
@@ -95,13 +104,15 @@ const createHelpIcon = () =>
     iconAnchor: [5.5, 5.5],
   })
 
+// ─── Map helpers ──────────────────────────────────────────────────────────────
+
 function MapController({ center, zoom }) {
   const map = useMap()
   useEffect(() => {
     if (center) {
       map.setView([center.lat, center.lng], zoom || map.getZoom(), {
         animate: true,
-        duration: 0.6,
+        duration: 0.5,
       })
     }
   }, [center?.lat, center?.lng])
@@ -125,32 +136,93 @@ function LocateMeButton({ onClick, loading }) {
   )
 }
 
+// ─── Route fetch ─────────────────────────────────────────────────────────────
+
 const fetchRoute = async (fromLat, fromLng, toLat, toLng) => {
-  const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`
-  const res = await fetch(url)
-  const data = await res.json()
-  if (data.code === 'Ok' && data.routes?.length > 0) {
-    const route = data.routes[0]
-    return {
-      coords: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
-      distance: route.legs[0].distance,
-      duration: route.legs[0].duration,
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    const data = await res.json()
+    if (data.code === 'Ok' && data.routes?.length > 0) {
+      const route = data.routes[0]
+      return {
+        coords: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+        distance: route.legs[0].distance,
+        duration: route.legs[0].duration,
+      }
     }
+  } catch {}
+  return null
+}
+
+// ─── Location status pill ─────────────────────────────────────────────────────
+
+function LocationStatusPill({ locationStatus, accuracy, locationSource, onRetry }) {
+  if (!locationStatus) return null
+  if (locationStatus === 'detecting') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <Loader2 className="w-3 h-3 animate-spin text-primary-500" />
+        Detecting location...
+      </div>
+    )
+  }
+  if (locationStatus === 'locked') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+        <CheckCircle className="w-3 h-3" />
+        Location locked
+        {locationSource === 'gps-high' && accuracy && (
+          <span className="text-gray-400 dark:text-gray-500 ml-0.5">
+            · ± {Math.round(accuracy)} m
+          </span>
+        )}
+      </div>
+    )
+  }
+  if (locationStatus === 'low-accuracy') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+        <AlertCircle className="w-3 h-3" />
+        Low accuracy{locationSource === 'ip' ? ' (IP-based)' : ''}
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="ml-1 underline font-medium"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    )
+  }
+  if (locationStatus === 'denied') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400">
+        <AlertCircle className="w-3 h-3" />
+        Location denied — allow in browser settings
+      </div>
+    )
   }
   return null
 }
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 function SidebarContent({
   location,
   address,
   locLoading,
   locError,
+  locationStatus,
+  locationSource,
+  accuracy,
   detect,
   activeTab,
   setActiveTab,
   typeFilter,
   setTypeFilter,
-  filteredPlaces,
+  sortedPlaces,
   nearbyRequests,
   selectedPlace,
   onPlaceClick,
@@ -158,14 +230,17 @@ function SidebarContent({
   loadingRoute,
   onClearRoute,
   onPanToPlace,
+  listRef,
+  selectedItemRef,
 }) {
   const cfg = selectedPlace ? PLACE_CONFIG[selectedPlace.type] : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Location status */}
+
+      {/* Location status bar */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
-        {locLoading ? (
+        {locLoading && !location ? (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" />
             Detecting location...
@@ -177,15 +252,18 @@ function SidebarContent({
               <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                 {address?.barangay || 'Location detected'}
               </span>
-              {address && !address.isQC && (
-                <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full">
-                  Outside QC
-                </span>
-              )}
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 ml-3.5">
-              {address?.city || ''} {address?.isQC ? '· Quezon City' : ''}
+              {address?.city || ''}
             </p>
+            <div className="mt-1 ml-3.5">
+              <LocationStatusPill
+                locationStatus={locationStatus}
+                accuracy={accuracy}
+                locationSource={locationSource}
+                onRetry={detect}
+              />
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -215,10 +293,7 @@ function SidebarContent({
               <div className="min-w-0">
                 <div
                   className="text-xs font-semibold px-2 py-0.5 rounded-full inline-block mb-1"
-                  style={{
-                    background: cfg?.bg,
-                    color: cfg?.text,
-                  }}
+                  style={{ background: cfg?.bg, color: cfg?.text }}
                 >
                   {cfg?.label}
                 </div>
@@ -237,18 +312,25 @@ function SidebarContent({
               </button>
             </div>
 
+            {selectedPlace.distance !== undefined && (
+              <div className="flex items-center gap-1 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <MapPin className="w-3 h-3" />
+                {formatDistance(selectedPlace.distance)}
+              </div>
+            )}
+
             {location && (
-              <div className="mt-3">
+              <div className="mt-2">
                 {loadingRoute ? (
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     Calculating route...
                   </div>
                 ) : route ? (
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-1.5 text-sm font-semibold text-primary-700 dark:text-primary-300">
                       <Route className="w-4 h-4" />
-                      {formatDistance(route.distance / 1000)}
+                      {formatDistanceShort(route.distance / 1000)}
                     </div>
                     <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                       <Clock className="w-3.5 h-3.5" />
@@ -260,13 +342,21 @@ function SidebarContent({
                       rel="noopener noreferrer"
                       className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
                     >
-                      Open Maps
-                      <ChevronRight className="w-3 h-3" />
+                      Open in Maps
+                      <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-400">
-                    Route unavailable. Try opening in Google Maps.
+                    Route unavailable.{' '}
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPlace.lat},${selectedPlace.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 dark:text-primary-400 underline"
+                    >
+                      Open in Google Maps
+                    </a>
                   </p>
                 )}
               </div>
@@ -284,10 +374,10 @@ function SidebarContent({
 
             <button
               onClick={() => onPanToPlace(selectedPlace)}
-              className="mt-3 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1"
+              className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1"
             >
               <MapPin className="w-3.5 h-3.5" />
-              View on map
+              Center on map
             </button>
           </div>
         </div>
@@ -315,11 +405,11 @@ function SidebarContent({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" ref={listRef}>
         {activeTab === 'places' && (
           <div>
-            {/* Type filters */}
-            <div className="flex gap-1.5 px-4 py-3 overflow-x-auto">
+            {/* Type filters + refresh */}
+            <div className="flex items-center gap-1.5 px-4 py-3 overflow-x-auto">
               {PLACE_TYPE_FILTERS.map((f) => (
                 <button
                   key={f.value}
@@ -334,22 +424,35 @@ function SidebarContent({
                   {f.label}
                 </button>
               ))}
+              <button
+                onClick={detect}
+                disabled={locLoading}
+                title="Refresh nearby"
+                className="shrink-0 ml-auto flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-40"
+              >
+                <RefreshCw className={clsx('w-3.5 h-3.5', locLoading && 'animate-spin')} />
+                Refresh
+              </button>
             </div>
 
+            {!location && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 text-center pb-3 px-4">
+                Enable location to sort places by distance.
+              </p>
+            )}
+
             <div className="divide-y divide-gray-50 dark:divide-gray-800/80">
-              {filteredPlaces.map((place) => {
+              {sortedPlaces.map((place) => {
                 const config = PLACE_CONFIG[place.type]
-                const dist = location
-                  ? haversine(location.lat, location.lng, place.lat, place.lng)
-                  : null
                 const isSelected = selectedPlace?.id === place.id
                 return (
                   <button
                     key={place.id}
+                    ref={isSelected ? selectedItemRef : null}
                     onClick={() => onPlaceClick(place)}
                     className={clsx(
                       'w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
-                      isSelected && 'bg-primary-50/50 dark:bg-primary-900/10'
+                      isSelected && 'bg-primary-50/60 dark:bg-primary-900/10 border-l-2 border-primary-500'
                     )}
                   >
                     <div className="flex items-start gap-3">
@@ -369,11 +472,23 @@ function SidebarContent({
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 line-clamp-1">
                           {place.address}
                         </p>
+                        {isSelected && (
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                          >
+                            Get Directions
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
                       </div>
                       <div className="text-right shrink-0">
-                        {dist !== null && (
-                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            {formatDistance(dist)}
+                        {place.distance !== undefined && (
+                          <span className="text-xs font-medium text-gray-400 dark:text-gray-500">
+                            {formatDistanceShort(place.distance)}
                           </span>
                         )}
                       </div>
@@ -399,11 +514,19 @@ function SidebarContent({
             {nearbyRequests.map((req) => (
               <div key={req.requestId} className="px-4 py-3">
                 <div className="flex items-start gap-2.5">
-                  <img
-                    src={req.userAvatar}
-                    alt={req.userName}
-                    className="w-8 h-8 rounded-full object-cover shrink-0"
-                  />
+                  {req.userAvatar ? (
+                    <img
+                      src={req.userAvatar}
+                      alt={req.userName}
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 flex items-center justify-center">
+                      <span className="text-xs font-medium text-gray-500">
+                        {req.userName?.[0] || '?'}
+                      </span>
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
                       {req.title}
@@ -415,7 +538,7 @@ function SidebarContent({
                       {req.distance !== undefined && (
                         <span className="flex items-center gap-0.5">
                           <MapPin className="w-2.5 h-2.5" />
-                          {formatDistance(req.distance)}
+                          {formatDistanceShort(req.distance)}
                         </span>
                       )}
                       <span>{req.category}</span>
@@ -432,9 +555,21 @@ function SidebarContent({
   )
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function MapView() {
-  const { location, address, loading: locLoading, error: locError, detect } = useLocationCtx()
+  const {
+    location,
+    address,
+    loading: locLoading,
+    error: locError,
+    locationStatus,
+    locationSource,
+    accuracy,
+    detect,
+  } = useLocationCtx()
   const { theme } = useTheme()
+
   const [activeTab, setActiveTab] = useState('places')
   const [typeFilter, setTypeFilter] = useState('all')
   const [selectedPlace, setSelectedPlace] = useState(null)
@@ -445,6 +580,9 @@ export default function MapView() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [nearbyRequests, setNearbyRequests] = useState([])
 
+  const listRef = useRef(null)
+  const selectedItemRef = useRef(null)
+
   const tileUrl =
     theme === 'dark'
       ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
@@ -453,11 +591,21 @@ export default function MapView() {
   const attribution =
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
-  const filteredPlaces =
-    typeFilter === 'all'
-      ? QC_PLACES
-      : QC_PLACES.filter((p) => p.type === typeFilter)
+  // Dynamic sorted places — always based on user location when available
+  const sortedPlaces = useMemo(() => {
+    const source =
+      typeFilter === 'all' ? QC_PLACES : QC_PLACES.filter((p) => p.type === typeFilter)
+    if (!location) return source
+    return source
+      .map((p) => ({
+        ...p,
+        distance: haversine(location.lat, location.lng, p.lat, p.lng),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10)
+  }, [location?.lat, location?.lng, typeFilter])
 
+  // Firestore real-time help requests, sorted by distance
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'helpRequests'), (snap) => {
       const all = snap.docs
@@ -467,6 +615,7 @@ export default function MapView() {
           createdAt: d.data().createdAt?.toDate() || new Date(),
         }))
         .filter((r) => r.status !== 'completed' && r.lat && r.lng)
+
       if (location) {
         const sorted = all
           .map((r) => ({
@@ -480,12 +629,28 @@ export default function MapView() {
       }
     })
     return unsub
-  }, [location])
+  }, [location?.lat, location?.lng])
+
+  // Auto-pan map to user when location changes
+  useEffect(() => {
+    if (location) {
+      setMapCenter({ lat: location.lat, lng: location.lng })
+      setMapZoom(14)
+    }
+  }, [location?.lat, location?.lng])
+
+  // Scroll selected item into view in list
+  useEffect(() => {
+    if (selectedItemRef.current && listRef.current) {
+      selectedItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [selectedPlace?.id])
 
   const handlePlaceClick = useCallback(
     async (place) => {
       setSelectedPlace(place)
       setSidebarOpen(true)
+      setActiveTab('places')
       setMapCenter({ lat: place.lat, lng: place.lng })
       setMapZoom(16)
       setRoute(null)
@@ -508,13 +673,6 @@ export default function MapView() {
     detect()
   }, [detect])
 
-  useEffect(() => {
-    if (location) {
-      setMapCenter({ lat: location.lat, lng: location.lng })
-      setMapZoom(14)
-    }
-  }, [location?.lat, location?.lng])
-
   const handlePanToPlace = useCallback((place) => {
     setMapCenter({ lat: place.lat, lng: place.lng })
     setMapZoom(17)
@@ -522,18 +680,22 @@ export default function MapView() {
 
   const defaultCenter = [QC_CENTER.lat, QC_CENTER.lng]
   const defaultZoom = 13
+  const mapHeight = 'calc(100vh - 64px)'
 
   const sidebarProps = {
     location,
     address,
     locLoading,
     locError,
+    locationStatus,
+    locationSource,
+    accuracy,
     detect,
     activeTab,
     setActiveTab,
     typeFilter,
     setTypeFilter,
-    filteredPlaces,
+    sortedPlaces,
     nearbyRequests,
     selectedPlace,
     onPlaceClick: handlePlaceClick,
@@ -541,21 +703,22 @@ export default function MapView() {
     loadingRoute,
     onClearRoute: handleClearRoute,
     onPanToPlace: handlePanToPlace,
+    listRef,
+    selectedItemRef,
   }
-
-  const mapHeight = 'calc(100vh - 64px)'
 
   return (
     <div style={{ display: 'flex', height: mapHeight, overflow: 'hidden' }}>
-      {/* Desktop sidebar — hidden on mobile */}
+
+      {/* Desktop sidebar */}
       <div
         className="hidden md:flex border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 flex-col overflow-hidden shrink-0"
-        style={{ width: 380 }}
+        style={{ width: 360 }}
       >
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <h1 className="text-base font-bold text-gray-900 dark:text-white">Community Map</h1>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-            Quezon City — police, hospitals, resources
+            Quezon City · police, hospitals, resources
           </p>
         </div>
         <div className="flex flex-col flex-1 overflow-hidden">
@@ -581,14 +744,19 @@ export default function MapView() {
               <Popup>
                 <div className="text-sm font-medium">Your Location</div>
                 {address?.barangay && (
-                  <div className="text-xs text-gray-500 mt-0.5">{address.barangay}, {address.city}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {address.barangay}, {address.city}
+                  </div>
+                )}
+                {locationStatus === 'low-accuracy' && (
+                  <div className="text-xs text-amber-600 mt-0.5">⚠ Low accuracy</div>
                 )}
               </Popup>
             </Marker>
           )}
 
-          {/* Place markers */}
-          {filteredPlaces.map((place) => (
+          {/* Place markers — use sortedPlaces so clicking map marker syncs list */}
+          {sortedPlaces.map((place) => (
             <Marker
               key={place.id}
               position={[place.lat, place.lng]}
@@ -600,6 +768,11 @@ export default function MapView() {
                 <div>
                   <div className="text-sm font-semibold">{place.name}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{place.address}</div>
+                  {place.distance !== undefined && (
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {formatDistance(place.distance)}
+                    </div>
+                  )}
                   {place.phone && (
                     <a
                       href={`tel:${place.phone}`}
@@ -632,7 +805,7 @@ export default function MapView() {
                   <div className="text-xs text-gray-500 mt-0.5">{req.category}</div>
                   {req.distance !== undefined && (
                     <div className="text-xs text-amber-600 mt-0.5">
-                      {formatDistance(req.distance)} away
+                      {formatDistance(req.distance)}
                     </div>
                   )}
                 </div>
@@ -660,7 +833,7 @@ export default function MapView() {
           <LocateMeButton onClick={handleLocate} loading={locLoading} />
         </div>
 
-        {/* Mobile: floating header toggle */}
+        {/* Mobile: panel toggle */}
         <div className="md:hidden absolute top-4 left-4 z-[1000]">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -679,7 +852,7 @@ export default function MapView() {
             'rounded-t-2xl shadow-2xl transition-transform duration-300',
             sidebarOpen ? 'translate-y-0' : 'translate-y-full'
           )}
-          style={{ maxHeight: '65vh' }}
+          style={{ maxHeight: '68vh' }}
         >
           <div
             className="flex justify-center pt-2.5 pb-1 cursor-pointer"
@@ -687,7 +860,7 @@ export default function MapView() {
           >
             <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-gray-700" />
           </div>
-          <div className="px-0 overflow-y-auto" style={{ maxHeight: 'calc(65vh - 2rem)' }}>
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(68vh - 2rem)' }}>
             <SidebarContent {...sidebarProps} />
           </div>
         </div>

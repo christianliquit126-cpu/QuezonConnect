@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { MapPin, Loader2, Navigation, AlertCircle, Wifi } from 'lucide-react'
+import { MapPin, Loader2, Navigation, AlertCircle, Wifi, CheckCircle } from 'lucide-react'
 import useGeolocation from '../hooks/useGeolocation'
 import { QC_CENTER } from '../data/qcPlaces'
 
@@ -45,7 +45,7 @@ export default function LocationPicker({ value, onChange, label }) {
   const mapInstanceRef = useRef(null)
   const markerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
-  const { location, address, loading, error, locationSource, detect } = useGeolocation()
+  const { location, address, loading, error, locationStatus, locationSource, accuracy, detect } = useGeolocation()
 
   const initialLat = value?.lat || QC_CENTER.lat
   const initialLng = value?.lng || QC_CENTER.lng
@@ -138,6 +138,29 @@ export default function LocationPicker({ value, onChange, label }) {
     markerRef.current?.setLatLng([value.lat, value.lng])
   }, [value?.lat, value?.lng, mapReady])
 
+  const statusEl = (() => {
+    if (loading) return (
+      <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+        <Loader2 className="w-3 h-3 animate-spin" /> Detecting location...
+      </span>
+    )
+    if (locationStatus === 'locked') return (
+      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+        <CheckCircle className="w-3 h-3" /> Location locked
+        {locationSource === 'gps-high' && accuracy && (
+          <span className="text-gray-400 ml-0.5">± {Math.round(accuracy)} m</span>
+        )}
+      </span>
+    )
+    if (locationStatus === 'low-accuracy') return (
+      <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+        <AlertCircle className="w-3 h-3" />
+        {locationSource === 'ip' ? 'Approximate (IP-based)' : 'Low accuracy — retry for better result'}
+      </span>
+    )
+    return null
+  })()
+
   return (
     <div className="space-y-2">
       {label && (
@@ -160,21 +183,16 @@ export default function LocationPicker({ value, onChange, label }) {
           ) : (
             <Navigation className="w-3.5 h-3.5" />
           )}
-          {loading ? 'Detecting location...' : 'Detect My Location'}
+          {loading ? 'Detecting...' : 'Detect My Location'}
         </button>
-        {locationSource === 'ip' && !loading && (
-          <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-            <Wifi className="w-3 h-3" />
-            Approximate (IP-based)
-          </span>
-        )}
-        {value?.address && (
-          <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <MapPin className="w-3 h-3" />
-            {value.address}
-          </span>
-        )}
+        {statusEl}
       </div>
+      {value?.address && !loading && (
+        <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <MapPin className="w-3 h-3 shrink-0" />
+          {value.address}
+        </span>
+      )}
       {error && (
         <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -182,7 +200,7 @@ export default function LocationPicker({ value, onChange, label }) {
         </div>
       )}
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        Click on the map or drag the marker to set your location manually.
+        Click the map or drag the marker to pin your location manually.
       </p>
     </div>
   )
