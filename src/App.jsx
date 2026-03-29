@@ -1,5 +1,5 @@
-import React, { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import React, { Suspense, lazy, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { LocationProvider } from './context/LocationContext'
@@ -10,6 +10,14 @@ import BackToTop from './components/BackToTop'
 import Home from './pages/Home'
 import FirebaseSetup from './components/FirebaseSetup'
 import { Loader2 } from 'lucide-react'
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [pathname])
+  return null
+}
 
 const Login     = lazy(() => import('./pages/Login'))
 const SignUp    = lazy(() => import('./pages/SignUp'))
@@ -45,6 +53,7 @@ const AppRoutes = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <ScrollToTop />
       <Navbar />
       <OfflineBanner />
       <BackToTop />

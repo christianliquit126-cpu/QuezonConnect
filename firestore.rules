@@ -25,16 +25,25 @@ service cloud.firestore {
     // ── Users collection ──────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuth();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+        // Prevent role escalation on create — only allow 'user' role on self-create
+        && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if (isOwner(userId) && !affectsRole()) || isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // Prevent ordinary users from changing their own role field
+    function affectsRole() {
+      return 'role' in request.resource.data
+        && request.resource.data.role != resource.data.role;
     }
 
     // ── Posts collection ──────────────────────────────────────────
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuth() && notBanned()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.content.size() <= 1000;
       allow update: if notBanned()
         && (isOwner(resource.data.uid) || isAdmin());
       allow delete: if isOwner(resource.data.uid) || isAdmin();
@@ -42,7 +51,8 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuth() && notBanned()
-          && request.resource.data.uid == request.auth.uid;
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.content.size() <= 300;
         allow update: if notBanned() && isOwner(resource.data.uid);
         allow delete: if isOwner(resource.data.uid) || isAdmin();
       }
@@ -52,7 +62,8 @@ service cloud.firestore {
     match /helpRequests/{requestId} {
       allow read: if true;
       allow create: if isAuth() && notBanned()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.description.size() <= 2000;
       allow update: if notBanned()
         && (isOwner(resource.data.uid) || isAdmin());
       allow delete: if isOwner(resource.data.uid) || isAdmin();
@@ -78,7 +89,8 @@ service cloud.firestore {
         resource.data.participants.hasAny([request.auth.uid]) || isAdmin()
       );
       allow create: if isAuth() && notBanned()
-        && request.resource.data.participants.hasAny([request.auth.uid]);
+        && request.resource.data.participants.hasAny([request.auth.uid])
+        && request.resource.data.participants.size() == 2;
       allow update: if isAuth()
         && resource.data.participants.hasAny([request.auth.uid]);
       allow delete: if isAdmin();
@@ -89,6 +101,7 @@ service cloud.firestore {
             .data.participants.hasAny([request.auth.uid]);
         allow create: if isAuth() && notBanned()
           && request.resource.data.uid == request.auth.uid
+          && request.resource.data.content.size() <= 2000
           && get(/databases/$(database)/documents/chats/$(chatId))
               .data.participants.hasAny([request.auth.uid]);
         allow update: if isOwner(resource.data.uid);
@@ -97,27 +110,34 @@ service cloud.firestore {
     }
 
     // ── Notifications ─────────────────────────────────────────────
-    // recipientUid is the field used when creating notifications
     match /notifications/{notifId} {
       allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
-      allow create: if isAuth() && notBanned();
+      // Sender must be authenticated; cannot impersonate another sender
+      allow create: if isAuth() && notBanned()
+        && (!('senderUid' in request.resource.data)
+            || request.resource.data.senderUid == request.auth.uid);
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid;
-      allow delete: if isAuth() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow delete: if isAuth()
+        && (resource.data.recipientUid == request.auth.uid || isAdmin());
     }
 
     // ── Reports ───────────────────────────────────────────────────
     match /reports/{reportId} {
       allow read: if isAdmin();
-      allow create: if isAuth() && notBanned();
+      allow create: if isAuth() && notBanned()
+        && request.resource.data.reportedByUid == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
     // ── Volunteers ────────────────────────────────────────────────
+    // Document ID must match the authenticated user's UID
     match /volunteers/{volId} {
       allow read: if true;
       allow create: if isAuth() && notBanned()
+        && volId == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
-      allow update: if isOwner(resource.data.uid) || isAdmin();
+      allow update: if (isOwner(resource.data.uid) && volId == request.auth.uid)
+        || isAdmin();
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
   }

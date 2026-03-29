@@ -355,9 +355,10 @@ export default function Messages() {
                         className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
                       >
                         <img
-                          src={u.avatar}
+                          src={u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name||'U')}&background=2563eb&color=fff`}
                           alt={u.name}
                           className="w-8 h-8 rounded-full object-cover shrink-0"
+                          onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name||'U')}&background=2563eb&color=fff` }}
                         />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">

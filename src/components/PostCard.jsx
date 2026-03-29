@@ -146,9 +146,12 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     }
   }
 
+  const COMMENT_MAX = 300
+
   const handleComment = async (e) => {
     e.preventDefault()
     if (!commentText.trim() || !currentUser) return
+    if (commentText.length > COMMENT_MAX) return
     setSubmitting(true)
     await addDoc(collection(db, 'posts', post.postId, 'comments'), {
       uid: currentUser.uid,
@@ -172,6 +175,16 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     }
     setCommentText('')
     setSubmitting(false)
+  }
+
+  const handleDeleteComment = async (commentId) => {
+    if (!currentUser) return
+    try {
+      await deleteDoc(doc(db, 'posts', post.postId, 'comments', commentId))
+      await updateDoc(doc(db, 'posts', post.postId), {
+        commentCount: increment(-1),
+      })
+    } catch {}
   }
 
   const handleSaveEdit = async () => {
@@ -483,7 +496,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             </p>
           )}
           {comments.map((c) => (
-            <div key={c.commentId} className="flex gap-2.5">
+            <div key={c.commentId} className="flex gap-2.5 group/comment">
               <img
                 src={c.userAvatar || avatarFallback(c.userName)}
                 alt={c.userName}
@@ -491,13 +504,24 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 onError={(e) => { e.currentTarget.src = avatarFallback(c.userName) }}
               />
               <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {c.userName}
-                  </p>
-                  <span className="text-xs text-gray-400">
-                    {formatDistanceToNow(c.createdAt, { addSuffix: true })}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                      {c.userName}
+                    </p>
+                    <span className="text-xs text-gray-400">
+                      {formatDistanceToNow(c.createdAt, { addSuffix: true })}
+                    </span>
+                  </div>
+                  {(currentUser?.uid === c.uid || isAdmin) && (
+                    <button
+                      onClick={() => handleDeleteComment(c.commentId)}
+                      className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
+                      title="Delete comment"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
                   {c.content}
@@ -514,26 +538,34 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 className="w-7 h-7 rounded-full shrink-0 mt-0.5 object-cover"
                 onError={(e) => { e.currentTarget.src = avatarFallback(currentUser.name) }}
               />
-              <div className="flex-1 flex gap-2">
-                <input
-                  ref={commentInputRef}
-                  type="text"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="input-field py-1.5 text-xs flex-1"
-                />
-                <button
-                  type="submit"
-                  disabled={!commentText.trim() || submitting}
-                  className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0"
-                >
-                  {submitting ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    'Post'
-                  )}
-                </button>
+              <div className="flex-1 space-y-1">
+                <div className="flex gap-2">
+                  <input
+                    ref={commentInputRef}
+                    type="text"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    maxLength={COMMENT_MAX}
+                    placeholder="Write a comment..."
+                    className={`input-field py-1.5 text-xs flex-1 ${commentText.length >= COMMENT_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commentText.trim() || submitting || commentText.length > COMMENT_MAX}
+                    className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0"
+                  >
+                    {submitting ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      'Post'
+                    )}
+                  </button>
+                </div>
+                {commentText.length >= COMMENT_MAX * 0.8 && (
+                  <p className={`text-xs text-right ${commentText.length >= COMMENT_MAX ? 'text-red-500' : 'text-amber-500'}`}>
+                    {COMMENT_MAX - commentText.length} remaining
+                  </p>
+                )}
               </div>
             </form>
           )}

@@ -38,17 +38,39 @@ export default function NotificationBell() {
       where('recipientUid', '==', currentUser.uid),
       orderBy('createdAt', 'desc')
     )
-    const unsub = onSnapshot(q, (snap) => {
-      setNotifications(
-        snap.docs
-          .map((d) => ({
-            id: d.id,
-            ...d.data(),
-            createdAt: d.data().createdAt?.toDate() || new Date(),
-          }))
-          .slice(0, 30)
-      )
-    })
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setNotifications(
+          snap.docs
+            .map((d) => ({
+              id: d.id,
+              ...d.data(),
+              createdAt: d.data().createdAt?.toDate() || new Date(),
+            }))
+            .slice(0, 30)
+        )
+      },
+      () => {
+        // Composite index may not exist yet — fall back to unordered query
+        const fallback = query(
+          collection(db, 'notifications'),
+          where('recipientUid', '==', currentUser.uid)
+        )
+        onSnapshot(fallback, (snap) => {
+          setNotifications(
+            snap.docs
+              .map((d) => ({
+                id: d.id,
+                ...d.data(),
+                createdAt: d.data().createdAt?.toDate() || new Date(),
+              }))
+              .sort((a, b) => b.createdAt - a.createdAt)
+              .slice(0, 30)
+          )
+        })
+      }
+    )
     return unsub
   }, [currentUser])
 

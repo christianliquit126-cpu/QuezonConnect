@@ -18,6 +18,7 @@ import {
   Clock,
   AlertCircle,
   FileText,
+  Settings,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import clsx from 'clsx'
@@ -27,6 +28,9 @@ const STATUS_STYLES = {
   in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: AlertCircle },
   completed: { label: 'Completed', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
 }
+
+const avatarFallback = (name) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=160`
 
 export default function Profile() {
   const { displayUser, currentUser } = useAuth()
@@ -117,15 +121,25 @@ export default function Profile() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <img
-              src={displayUser?.avatar}
+              src={displayUser?.avatar || avatarFallback(displayUser?.name)}
               alt={displayUser?.name}
               className="w-20 h-20 rounded-2xl object-cover border-2 border-primary-100 dark:border-primary-900 shrink-0"
+              onError={(e) => { e.currentTarget.src = avatarFallback(displayUser?.name) }}
             />
 
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {displayUser?.name}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {displayUser?.name}
+                </h1>
+                <Link
+                  to="/settings"
+                  className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  title="Edit profile"
+                >
+                  <Settings className="w-4 h-4" />
+                </Link>
+              </div>
               <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 <Mail className="w-3.5 h-3.5" />
                 {displayUser?.email}
