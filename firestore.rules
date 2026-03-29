@@ -4,31 +4,25 @@ service cloud.firestore {
 
     // ── Helper functions ──────────────────────────────────────────
 
-    // Is the user authenticated?
     function isAuth() {
       return request.auth != null;
     }
 
-    // Is the user an admin (by Firestore role field)?
     function isAdmin() {
       return isAuth() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Is the user not banned?
     function notBanned() {
       return isAuth() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'banned';
     }
 
-    // Does the user own the document (by uid field)?
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
 
     // ── Users collection ──────────────────────────────────────────
-    // Authenticated users can read any profile (needed for names/avatars)
-    // Users manage their own doc; admins can manage any
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId);
@@ -37,9 +31,6 @@ service cloud.firestore {
     }
 
     // ── Posts collection ──────────────────────────────────────────
-    // Public read so the community feed works for everyone
-    // Only authenticated non-banned users can create
-    // Only post owner or admin can edit/delete
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuth() && notBanned()
@@ -48,7 +39,6 @@ service cloud.firestore {
         && (isOwner(resource.data.uid) || isAdmin());
       allow delete: if isOwner(resource.data.uid) || isAdmin();
 
-      // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuth() && notBanned()
@@ -59,9 +49,6 @@ service cloud.firestore {
     }
 
     // ── Help Requests collection ──────────────────────────────────
-    // Public read so anyone can see requests on the map / feed
-    // Only authenticated non-banned users can create
-    // Only owner or admin can update/delete
     match /helpRequests/{requestId} {
       allow read: if true;
       allow create: if isAuth() && notBanned()
@@ -77,8 +64,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Resources (public read, admin write) ─────────────────────
+    match /resources/{resourceId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // ── Chats ─────────────────────────────────────────────────────
-    // Only participants can read their chat; admin can read all
     match /chats/{chatId} {
       allow read: if isAuth() && (
         resource.data.participants.hasAny([request.auth.uid]) || isAdmin()
@@ -89,7 +83,6 @@ service cloud.firestore {
         && resource.data.participants.hasAny([request.auth.uid]);
       allow delete: if isAdmin();
 
-      // Messages: only participants can read/write; owner or admin can delete
       match /messages/{messageId} {
         allow read: if isAuth() &&
           get(/databases/$(database)/documents/chats/$(chatId))
@@ -104,16 +97,15 @@ service cloud.firestore {
     }
 
     // ── Notifications ─────────────────────────────────────────────
-    // Users can only read their own notifications; system/functions create them
+    // recipientUid is the field used when creating notifications
     match /notifications/{notifId} {
-      allow read: if isAuth() && isOwner(resource.data.userId);
+      allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
       allow create: if isAuth() && notBanned();
-      allow update: if isAuth() && isOwner(resource.data.userId);
-      allow delete: if isAuth() && (isOwner(resource.data.userId) || isAdmin());
+      allow update: if isAuth() && resource.data.recipientUid == request.auth.uid;
+      allow delete: if isAuth() && (resource.data.recipientUid == request.auth.uid || isAdmin());
     }
 
     // ── Reports ───────────────────────────────────────────────────
-    // Anyone authenticated can submit a report; only admins can read/manage
     match /reports/{reportId} {
       allow read: if isAdmin();
       allow create: if isAuth() && notBanned();

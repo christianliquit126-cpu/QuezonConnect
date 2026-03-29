@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useLocation } from 'react-router-dom'
 import { db } from '../firebase'
 import {
   collection,
@@ -76,6 +77,7 @@ function SkeletonChat() {
 
 export default function Messages() {
   const { currentUser, displayUser } = useAuth()
+  const routerLocation = useLocation()
   const [chats, setChats] = useState([])
   const [activeChat, setActiveChat] = useState(null)
   const [messages, setMessages] = useState([])
@@ -89,6 +91,11 @@ export default function Messages() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const activeChatRef = useRef(null)
+
+  useEffect(() => {
+    activeChatRef.current = activeChat
+  }, [activeChat])
 
   useEffect(() => {
     if (!currentUser) return
@@ -157,12 +164,39 @@ export default function Messages() {
   useEffect(() => {
     if (activeChat) {
       setTimeout(() => inputRef.current?.focus(), 100)
+      markChatAsRead(activeChat.chatId)
     }
   }, [activeChat?.chatId])
 
+  // Handle ?startChat= query param from "Offer Help" button
+  useEffect(() => {
+    const params = new URLSearchParams(routerLocation.search)
+    const startChatUid = params.get('startChat')
+    const startChatName = params.get('name')
+    const startChatAvatar = params.get('avatar')
+    if (startChatUid && currentUser && startChatUid !== currentUser.uid) {
+      const otherUser = { uid: startChatUid, name: startChatName || 'User', avatar: startChatAvatar || '' }
+      startChat(otherUser)
+    }
+  }, [currentUser])
+
   const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_')
 
+  const markChatAsRead = useCallback(async (chatId) => {
+    if (!currentUser || !chatId) return
+    try {
+      const ref = doc(db, 'chats', chatId)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) return
+      const data = snap.data()
+      if (data.lastSenderId && data.lastSenderId !== currentUser.uid) {
+        await updateDoc(ref, { lastReadBy: { ...data.lastReadBy, [currentUser.uid]: serverTimestamp() } })
+      }
+    } catch {}
+  }, [currentUser])
+
   const startChat = useCallback(async (otherUser) => {
+    if (!currentUser || !displayUser) return
     const chatId = getChatId(currentUser.uid, otherUser.uid)
     const ref = doc(db, 'chats', chatId)
     const snap = await getDoc(ref)
@@ -230,6 +264,8 @@ export default function Messages() {
   const isUnread = (chat) => {
     if (!chat.lastSenderId || chat.lastSenderId === currentUser?.uid) return false
     if (!chat.lastMessage) return false
+    const lastReadBy = chat.lastReadBy || {}
+    if (lastReadBy[currentUser?.uid]) return false
     return true
   }
 
@@ -264,6 +300,11 @@ export default function Messages() {
   }
 
   const messageGroups = groupMessages(messages)
+
+  const handleSetActiveChat = (chat) => {
+    setActiveChat(chat)
+    markChatAsRead(chat.chatId)
+  }
 
   return (
     <div
@@ -361,7 +402,7 @@ export default function Messages() {
                 return (
                   <button
                     key={chat.chatId}
-                    onClick={() => setActiveChat(chat)}
+                    onClick={() => handleSetActiveChat(chat)}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative ${
                       activeChat?.chatId === chat.chatId
                         ? 'bg-primary-50 dark:bg-primary-900/20 border-r-2 border-primary-600'
@@ -411,7 +452,6 @@ export default function Messages() {
         {/* Chat window */}
         {activeChat ? (
           <div className="flex-1 flex flex-col min-w-0">
-            {/* Header */}
             {(() => {
               const other = getOtherParticipant(activeChat)
               return (

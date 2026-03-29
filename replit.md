@@ -117,6 +117,9 @@ All three main collections now include location data:
 - Admin UID has full access to all collections
 - Banned users cannot create any content
 - Reports collection is read/write by admin only
+- `resources` collection: public read, admin-only write — rule present and correct
+- `notifications` collection uses `recipientUid` field for read/update rules (not `userId`)
+- `volunteers` collection: public read, owner/admin write, deduplication via `setDoc` with uid as doc ID
 
 ## Firebase Setup (via Shell)
 ```bash
@@ -149,16 +152,22 @@ kill 1   # restart to pick up env vars
 ## Chat System (Messages)
 - Real-time 1-on-1 chat using Firestore subcollections
 - Unread badge on Messages icon in Navbar (counts chats with new messages from others)
+- **Mark as read**: opening a chat writes `lastReadBy[uid]` to the chat doc; Navbar unread count checks this field
 - Unread bold styling in chat list for conversations with unseen messages
 - Grouped chat bubbles — consecutive messages from same user are visually grouped
 - Message notifications sent to recipient via `notifications` collection on every send
 - Skeleton loading state for chat list
+- **"Offer Help" integration**: `GetHelp` "Offer Help" button navigates to `/messages?startChat=UID&name=…` to auto-open a conversation with the requester
+- **Start new chat panel**: search all users and open a conversation directly from Messages
 
 ## Notification System
 - `src/services/notifications.js` — `createNotification()` helper
-- Triggered on: comment on your post, new message received, nearby help request (proximity alert)
+- Triggered on: **like on your post** (new), comment on your post, new message received, nearby help request (proximity alert)
 - Real-time listener in NotificationBell via Firestore onSnapshot
 - Unread count badge, "Mark all read" batch update
+- **Clickable notifications**: each notification navigates to `n.link` and marks itself as read individually on click
+- **Type icons**: 🔔 default, ❤️ like, 💬 comment, ✉️ message, 🙌 help, 🤝 volunteer
+- **Better empty state**: BellOff icon with descriptive message
 - `ProximityNotificationListener.jsx` — silent component on Home that notifies logged-in users when a new helpRequest appears within 3km
 
 ## Advanced Features (Added)

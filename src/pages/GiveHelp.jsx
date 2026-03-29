@@ -8,8 +8,13 @@ import {
   query,
   orderBy,
   onSnapshot,
+  doc,
+  setDoc,
+  updateDoc,
+  where,
+  getDocs,
 } from 'firebase/firestore'
-import { Heart, Award, Users, MapPin, ChevronRight, Loader2 } from 'lucide-react'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -31,14 +36,22 @@ export default function GiveHelp() {
   const [openRequests, setOpenRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [registered, setRegistered] = useState(false)
+  const [myVolunteerDoc, setMyVolunteerDoc] = useState(null)
+  const [checkingVolunteer, setCheckingVolunteer] = useState(true)
+  const [togglingStatus, setTogglingStatus] = useState(false)
 
   useEffect(() => {
     const vq = query(collection(db, 'volunteers'), orderBy('helpCount', 'desc'))
     const unsub1 = onSnapshot(vq, (snap) => {
-      setVolunteers(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      )
+      const vols = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      setVolunteers(vols)
+      if (currentUser) {
+        const myDoc = snap.docs.find((d) => d.data().uid === currentUser.uid)
+        if (myDoc) {
+          setMyVolunteerDoc({ id: myDoc.id, ...myDoc.data() })
+        }
+        setCheckingVolunteer(false)
+      }
     })
 
     const unsub2 = onSnapshot(collection(db, 'helpRequests'), (snap) => {
@@ -56,7 +69,11 @@ export default function GiveHelp() {
     }, (err) => { console.error('GiveHelp requests error:', err); setLoading(false) })
 
     return () => { unsub1(); unsub2() }
-  }, [])
+  }, [currentUser])
+
+  useEffect(() => {
+    if (!currentUser) { setCheckingVolunteer(false); return }
+  }, [currentUser])
 
   const toggleSkill = (s) =>
     setSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -64,7 +81,7 @@ export default function GiveHelp() {
   const handleRegister = async () => {
     if (!skills.length || !displayUser) return
     setSaving(true)
-    await addDoc(collection(db, 'volunteers'), {
+    await setDoc(doc(db, 'volunteers', currentUser.uid), {
       uid: displayUser.uid,
       name: displayUser.name,
       avatar: displayUser.avatar,
@@ -73,9 +90,22 @@ export default function GiveHelp() {
       online: true,
       createdAt: serverTimestamp(),
     })
-    setRegistered(true)
     setSaving(false)
   }
+
+  const handleToggleOnline = async () => {
+    if (!myVolunteerDoc) return
+    setTogglingStatus(true)
+    try {
+      await updateDoc(doc(db, 'volunteers', myVolunteerDoc.id), {
+        online: !myVolunteerDoc.online,
+      })
+    } finally {
+      setTogglingStatus(false)
+    }
+  }
+
+  const isRegistered = !!myVolunteerDoc
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -103,54 +133,78 @@ export default function GiveHelp() {
         ))}
       </div>
 
-      {/* Register as volunteer */}
-      {!registered ? (
-        <div className="card p-6">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-1">Register as a Volunteer</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Let the community know how you can help
-          </p>
-          <div className="mb-4">
-            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select your skills
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SKILL_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => toggleSkill(s)}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    skills.includes(s)
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+      {/* Volunteer Registration / Status */}
+      {currentUser && !checkingVolunteer && (
+        isRegistered ? (
+          <div className="card p-6 space-y-4">
+            <div className="flex items-center gap-4">
+              <CheckCircle2 className="w-8 h-8 text-green-500 shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900 dark:text-white">
+                  You're registered as a volunteer!
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  Skills: {myVolunteerDoc.skills?.join(', ')}
+                </p>
+              </div>
+              <button
+                onClick={handleToggleOnline}
+                disabled={togglingStatus}
+                className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl border transition-colors ${
+                  myVolunteerDoc.online
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-100'
+                    : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200'
+                }`}
+              >
+                {togglingStatus ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : myVolunteerDoc.online ? (
+                  <><Wifi className="w-4 h-4" /> Available</>
+                ) : (
+                  <><WifiOff className="w-4 h-4" /> Unavailable</>
+                )}
+              </button>
             </div>
-          </div>
-          <button
-            onClick={handleRegister}
-            disabled={!skills.length || saving}
-            className="btn-primary disabled:opacity-60 flex items-center gap-2"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Register as Volunteer
-          </button>
-        </div>
-      ) : (
-        <div className="card p-6 flex items-center gap-4 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
-          <Award className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
-          <div>
-            <p className="font-semibold text-green-800 dark:text-green-200">
-              You're registered as a volunteer!
-            </p>
-            <p className="text-sm text-green-600 dark:text-green-400 mt-0.5">
-              Skills: {skills.join(', ')}
+            <p className="text-xs text-gray-400">
+              Toggle your availability so the community knows when you can help.
             </p>
           </div>
-        </div>
+        ) : (
+          <div className="card p-6">
+            <h2 className="font-bold text-gray-900 dark:text-white mb-1">Register as a Volunteer</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Let the community know how you can help
+            </p>
+            <div className="mb-4">
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select your skills
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {SKILL_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => toggleSkill(s)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                      skills.includes(s)
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleRegister}
+              disabled={!skills.length || saving}
+              className="btn-primary disabled:opacity-60 flex items-center gap-2"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Register as Volunteer
+            </button>
+          </div>
+        )
       )}
 
       {/* Open requests */}
@@ -190,6 +244,11 @@ export default function GiveHelp() {
                         </span>
                       )}
                       <span>{req.category}</span>
+                      {req.urgency && req.urgency !== 'normal' && (
+                        <span className={`font-medium ${req.urgency === 'emergency' ? 'text-red-500' : 'text-orange-500'}`}>
+                          {req.urgency.charAt(0).toUpperCase() + req.urgency.slice(1)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -235,6 +294,7 @@ export default function GiveHelp() {
                     className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
                       v.online ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
+                    title={v.online ? 'Available' : 'Unavailable'}
                   />
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">{v.name}</p>
@@ -244,6 +304,13 @@ export default function GiveHelp() {
                 <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
                   {v.helpCount} helped
                 </p>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  v.online
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                }`}>
+                  {v.online ? 'Available' : 'Unavailable'}
+                </span>
               </div>
             ))}
           </div>

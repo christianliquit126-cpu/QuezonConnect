@@ -117,7 +117,6 @@ export default function Profile() {
       <div className="card p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            {/* Avatar — read only */}
             <img
               src={displayUser?.avatar}
               alt={displayUser?.name}
@@ -156,7 +155,6 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Settings link */}
           <Link
             to="/settings"
             className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -165,6 +163,13 @@ export default function Profile() {
             <Settings className="w-4 h-4" />
           </Link>
         </div>
+
+        {/* Bio */}
+        {displayUser?.bio && (
+          <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed border-t border-gray-100 dark:border-gray-800 pt-4">
+            {displayUser.bio}
+          </p>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
@@ -200,7 +205,7 @@ export default function Profile() {
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900 dark:text-white">
-            My Posts
+            My Activity
             {!isLoadingAll && (
               <span className="ml-2 text-sm font-normal text-gray-400">
                 ({allActivity.length} {allActivity.length === 1 ? 'item' : 'items'})

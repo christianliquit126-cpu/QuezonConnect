@@ -6,8 +6,9 @@ import { Heart, Eye, EyeOff, AlertCircle } from 'lucide-react'
 export default function SignUp() {
   const { signup, loginWithGoogle, loginWithFacebook } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '', location: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', location: '' })
   const [showPw, setShowPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,6 +18,7 @@ export default function SignUp() {
     e.preventDefault()
     setError('')
     if (form.password.length < 6) return setError('Password must be at least 6 characters.')
+    if (form.password !== form.confirmPassword) return setError('Passwords do not match.')
     setLoading(true)
     try {
       await signup(form.email, form.password, form.name, form.location)
@@ -37,6 +39,17 @@ export default function SignUp() {
     try { await loginWithFacebook(); navigate('/') }
     catch { setError('Facebook sign-in failed.') }
   }
+
+  const passwordStrength = (pw) => {
+    if (!pw) return null
+    if (pw.length < 6) return { level: 'weak', label: 'Too short', color: 'bg-red-400' }
+    if (pw.length < 8) return { level: 'fair', label: 'Fair', color: 'bg-yellow-400' }
+    if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { level: 'strong', label: 'Strong', color: 'bg-green-500' }
+    return { level: 'good', label: 'Good', color: 'bg-blue-400' }
+  }
+
+  const strength = passwordStrength(form.password)
+  const passwordsMatch = form.confirmPassword && form.password === form.confirmPassword
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4 py-12">
@@ -103,6 +116,52 @@ export default function SignUp() {
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {strength && (
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex gap-1">
+                    {['weak', 'fair', 'good', 'strong'].map((level, i) => (
+                      <div
+                        key={level}
+                        className={`h-1 flex-1 rounded-full transition-colors ${
+                          ['weak', 'fair', 'good', 'strong'].indexOf(strength.level) >= i
+                            ? strength.color
+                            : 'bg-gray-200 dark:bg-gray-700'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400">{strength.label}</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Confirm Password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPw ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  placeholder="Re-enter your password"
+                  className={`input-field pr-10 ${
+                    form.confirmPassword && !passwordsMatch
+                      ? 'border-red-300 dark:border-red-700 focus:ring-red-400'
+                      : passwordsMatch
+                      ? 'border-green-300 dark:border-green-700 focus:ring-green-400'
+                      : ''
+                  }`}
+                />
+                <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {form.confirmPassword && !passwordsMatch && (
+                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+              )}
+              {passwordsMatch && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">Passwords match</p>
+              )}
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center flex disabled:opacity-60">
               {loading ? 'Creating account...' : 'Create Account'}

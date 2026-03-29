@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Heart, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { auth } from '../firebase'
+import { sendPasswordResetEmail } from 'firebase/auth'
+import { Heart, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export default function Login() {
   const { login, loginWithGoogle, loginWithFacebook } = useAuth()
@@ -10,6 +12,11 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetError, setResetError] = useState('')
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
 
@@ -48,6 +55,101 @@ export default function Login() {
     } catch (err) {
       setError('Facebook sign-in failed. Make sure Facebook Auth is enabled in Firebase.')
     }
+  }
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) return
+    setResetLoading(true)
+    setResetError('')
+    try {
+      await sendPasswordResetEmail(auth, resetEmail.trim())
+      setResetSent(true)
+    } catch (err) {
+      setResetError(
+        err.code === 'auth/user-not-found'
+          ? 'No account found with that email address.'
+          : err.code === 'auth/invalid-email'
+          ? 'Please enter a valid email address.'
+          : 'Failed to send reset email. Please try again.'
+      )
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  if (showForgot) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center mb-3">
+              <Heart className="w-6 h-6 text-white" fill="white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reset Password</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Enter your email to receive a reset link
+            </p>
+          </div>
+
+          <div className="card p-6 space-y-4">
+            {resetSent ? (
+              <div className="flex flex-col items-center py-4 text-center gap-3">
+                <CheckCircle2 className="w-10 h-10 text-green-500" />
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Reset email sent!</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Check your inbox at <strong>{resetEmail}</strong> and follow the instructions to reset your password.
+                </p>
+                <button
+                  onClick={() => { setShowForgot(false); setResetSent(false); setResetEmail('') }}
+                  className="btn-primary text-sm mt-2"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <>
+                {resetError && (
+                  <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-lg px-3 py-2.5">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-600 dark:text-red-400">{resetError}</p>
+                  </div>
+                )}
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Email address
+                    </label>
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                      placeholder="you@example.com"
+                      className="input-field"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={resetLoading || !resetEmail.trim()}
+                    className="btn-primary w-full justify-center flex disabled:opacity-60"
+                  >
+                    {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                  </button>
+                </form>
+                <button
+                  onClick={() => { setShowForgot(false); setResetError('') }}
+                  className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Back to Sign In
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -117,9 +219,18 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setShowForgot(true); setResetEmail(form.email) }}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}

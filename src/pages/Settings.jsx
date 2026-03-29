@@ -12,6 +12,8 @@ import {
   Map,
   CheckCircle2,
   LogOut,
+  Mail,
+  FileText,
 } from 'lucide-react'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 import { useLocationCtx } from '../context/LocationContext'
@@ -30,6 +32,7 @@ export default function Settings() {
     location: displayUser?.location || '',
     lat: displayUser?.lat || null,
     lng: displayUser?.lng || null,
+    bio: displayUser?.bio || '',
   })
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -47,6 +50,7 @@ export default function Settings() {
         location: displayUser.location || '',
         lat: displayUser.lat || null,
         lng: displayUser.lng || null,
+        bio: displayUser.bio || '',
       })
     }
   }, [displayUser])
@@ -101,6 +105,7 @@ export default function Settings() {
       lat: form.lat || null,
       lng: form.lng || null,
       isQC: form.city?.toLowerCase().includes('quezon') || false,
+      bio: form.bio.trim(),
     })
     await refreshProfile()
     setSaving(false)
@@ -200,6 +205,46 @@ export default function Settings() {
             className="input-field"
             placeholder="Your full name"
           />
+        </div>
+
+        {/* Email (read-only) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5" />
+              Email Address
+            </span>
+          </label>
+          <input
+            type="email"
+            value={currentUser?.email || ''}
+            readOnly
+            disabled
+            className="input-field bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+          />
+          <p className="text-xs text-gray-400 mt-1">Your email cannot be changed here.</p>
+        </div>
+
+        {/* Bio */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" />
+              About / Bio
+            </span>
+          </label>
+          <textarea
+            value={form.bio}
+            onChange={(e) => {
+              if (e.target.value.length <= 200) {
+                setForm((f) => ({ ...f, bio: e.target.value }))
+              }
+            }}
+            className="input-field resize-none"
+            rows={3}
+            placeholder="Tell the community a little about yourself…"
+          />
+          <p className="text-xs text-gray-400 mt-1 text-right">{form.bio.length}/200</p>
         </div>
 
         {/* Barangay / Location */}

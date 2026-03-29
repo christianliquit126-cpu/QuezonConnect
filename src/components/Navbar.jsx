@@ -36,7 +36,10 @@ function useUnreadMessages(currentUser) {
           data.lastSenderId &&
           data.lastSenderId !== currentUser.uid
         ) {
-          unread++
+          const lastReadBy = data.lastReadBy || {}
+          if (!lastReadBy[currentUser.uid]) {
+            unread++
+          }
         }
       })
       setCount(unread)

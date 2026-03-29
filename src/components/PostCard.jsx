@@ -36,6 +36,15 @@ const avatarFallback = (name) =>
 
 const READ_MORE_LIMIT = 300
 
+const REPORT_REASONS = [
+  'Spam',
+  'Harassment or bullying',
+  'Misinformation',
+  'Inappropriate content',
+  'Scam or fraud',
+  'Other',
+]
+
 function PostMenu({ onEdit, onDelete, onClose }) {
   const ref = useRef(null)
   useEffect(() => {
@@ -83,6 +92,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [reported, setReported] = useState(false)
+  const [showReportPanel, setShowReportPanel] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
   const commentInputRef = useRef(null)
 
   const isOwner = currentUser?.uid === post.uid
@@ -116,6 +128,21 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     setShowComments((v) => !v)
     if (!showComments) {
       setTimeout(() => commentInputRef.current?.focus(), 200)
+    }
+  }
+
+  const handleLike = () => {
+    if (!currentUser) return
+    onLike?.(post.postId)
+    if (!liked && post.uid && post.uid !== currentUser.uid) {
+      createNotification({
+        recipientUid: post.uid,
+        type: 'like',
+        message: `${currentUser.name} liked your post.`,
+        link: '/',
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+      })
     }
   }
 
@@ -187,9 +214,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     }
   }
 
-  const handleReport = async () => {
-    if (reported) return
-    if (!window.confirm('Report this post to moderators?')) return
+  const handleReportSubmit = async () => {
+    if (!reportReason || reportSubmitting) return
+    setReportSubmitting(true)
     try {
       await addDoc(collection(db, 'reports'), {
         targetType: 'post',
@@ -198,12 +225,14 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
         description: post.content.slice(0, 300),
         reportedByUid: currentUser.uid,
         reportedBy: currentUser.name,
-        reason: 'Reported by community member',
+        reason: reportReason,
         status: 'open',
         createdAt: serverTimestamp(),
       })
       setReported(true)
+      setShowReportPanel(false)
     } catch {}
+    setReportSubmitting(false)
   }
 
   const displayContent = isLong && !expanded
@@ -341,7 +370,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       {/* Actions */}
       <div className="px-5 py-3 border-t border-gray-50 dark:border-gray-800 flex items-center gap-5">
         <button
-          onClick={() => currentUser && onLike?.(post.postId)}
+          onClick={handleLike}
           className={`flex items-center gap-1.5 text-sm transition-colors ${
             liked
               ? 'text-red-500'
@@ -364,19 +393,24 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
         </button>
 
         <div className="flex items-center gap-3 ml-auto">
-          {canReport && (
+          {canReport && !reported && (
             <button
-              onClick={handleReport}
-              title={reported ? 'Reported' : 'Report post'}
+              onClick={() => setShowReportPanel((v) => !v)}
+              title="Report post"
               className={`flex items-center gap-1 text-sm transition-colors ${
-                reported
-                  ? 'text-orange-400 cursor-default'
+                showReportPanel
+                  ? 'text-orange-500'
                   : 'text-gray-400 hover:text-orange-500 dark:hover:text-orange-400'
               }`}
             >
               <Flag className="w-3.5 h-3.5" />
-              {reported && <span className="text-xs hidden sm:inline">Reported</span>}
             </button>
+          )}
+          {canReport && reported && (
+            <span className="flex items-center gap-1 text-xs text-orange-400">
+              <Flag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Reported</span>
+            </span>
           )}
           <button
             onClick={handleShare}
@@ -394,6 +428,46 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           </button>
         </div>
       </div>
+
+      {/* Report reason panel */}
+      {showReportPanel && canReport && !reported && (
+        <div className="px-5 py-3 bg-orange-50 dark:bg-orange-900/10 border-t border-orange-100 dark:border-orange-900/30">
+          <p className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-2">
+            Report reason
+          </p>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {REPORT_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setReportReason(r)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  reportReason === r
+                    ? 'bg-orange-500 text-white border-orange-500'
+                    : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleReportSubmit}
+              disabled={!reportReason || reportSubmitting}
+              className="text-xs px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              {reportSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
+              Submit Report
+            </button>
+            <button
+              onClick={() => { setShowReportPanel(false); setReportReason('') }}
+              className="text-xs px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Comments */}
       {showComments && (

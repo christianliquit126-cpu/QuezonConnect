@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLocationCtx } from '../context/LocationContext'
 import { db } from '../firebase'
@@ -12,6 +12,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore'
 import {
   PlusCircle,
@@ -22,6 +23,9 @@ import {
   Loader2,
   Inbox,
   Navigation,
+  Trash2,
+  MessageCircle,
+  AlertTriangle,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
@@ -38,6 +42,12 @@ const CATEGORIES = [
   'Utilities',
   'Community Events',
   'Other',
+]
+
+const URGENCY_LEVELS = [
+  { value: 'normal', label: 'Normal', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },
+  { value: 'urgent', label: 'Urgent', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  { value: 'emergency', label: 'Emergency', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 ]
 
 const STATUS_STYLES = {
@@ -58,10 +68,13 @@ const STATUS_STYLES = {
   },
 }
 
-const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLocation }) {
+const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLocation, onOfferHelp }) {
   const status = STATUS_STYLES[req.status] || STATUS_STYLES.pending
   const StatusIcon = status.icon
   const isOwner = currentUser?.uid === req.uid
+  const [deleting, setDeleting] = useState(false)
+
+  const urgency = URGENCY_LEVELS.find((u) => u.value === req.urgency) || URGENCY_LEVELS[0]
 
   const distance =
     userLocation && req.lat && req.lng
@@ -73,8 +86,18 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
     logEvent('help_request_status_change', { requestId: req.requestId, status: newStatus })
   }, [req.requestId])
 
+  const handleDelete = useCallback(async () => {
+    if (!window.confirm('Delete this request? This cannot be undone.')) return
+    setDeleting(true)
+    try {
+      await deleteDoc(doc(db, 'helpRequests', req.requestId))
+    } catch {
+      setDeleting(false)
+    }
+  }, [req.requestId])
+
   return (
-    <div className="card p-5 space-y-3">
+    <div className={`card p-5 space-y-3 transition-opacity ${deleting ? 'opacity-50 pointer-events-none' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <img
@@ -90,12 +113,20 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
             </p>
           </div>
         </div>
-        <span
-          className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}
-        >
-          <StatusIcon className="w-3 h-3" />
-          {status.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {req.urgency && req.urgency !== 'normal' && (
+            <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${urgency.cls}`}>
+              <AlertTriangle className="w-3 h-3" />
+              {urgency.label}
+            </span>
+          )}
+          <span
+            className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}
+          >
+            <StatusIcon className="w-3 h-3" />
+            {status.label}
+          </span>
+        </div>
       </div>
 
       <div>
@@ -131,7 +162,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       </div>
 
       {isOwner ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {req.status !== 'in_progress' && (
             <button
               onClick={() => handleStatusChange('in_progress')}
@@ -148,9 +179,27 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
               Mark Completed
             </button>
           )}
+          {req.status !== 'completed' && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete
+            </button>
+          )}
         </div>
       ) : (
-        <button className="btn-secondary w-full text-sm">Offer Help</button>
+        currentUser && req.status !== 'completed' && (
+          <button
+            onClick={() => onOfferHelp(req)}
+            className="btn-secondary w-full text-sm flex items-center justify-center gap-1.5"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Offer Help
+          </button>
+        )
       )}
     </div>
   )
@@ -159,6 +208,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
 export default function GetHelp() {
   const { displayUser, currentUser } = useAuth()
   const { location, address, detect, loading: locLoading } = useLocationCtx()
+  const navigate = useNavigate()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -166,12 +216,14 @@ export default function GetHelp() {
     title: '',
     description: '',
     category: 'Other',
+    urgency: 'normal',
     location: displayUser?.location || '',
   })
   const [submitting, setSubmitting] = useState(false)
   const routerLocation = useLocation()
   const categoryParam = new URLSearchParams(routerLocation.search).get('category')
   const [filter, setFilter] = useState(categoryParam || 'All')
+  const [categoryFilter, setCategoryFilter] = useState('All')
   const [distanceFilter, setDistanceFilter] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
 
@@ -217,6 +269,7 @@ export default function GetHelp() {
       title: form.title,
       description: form.description,
       category: form.category,
+      urgency: form.urgency || 'normal',
       location: form.location,
       imageURL: imageUrl || null,
       lat: location?.lat || displayUser?.lat || null,
@@ -226,11 +279,12 @@ export default function GetHelp() {
       status: 'pending',
       createdAt: serverTimestamp(),
     })
-    logEvent('help_request_created', { category: form.category })
+    logEvent('help_request_created', { category: form.category, urgency: form.urgency })
     setForm({
       title: '',
       description: '',
       category: 'Other',
+      urgency: 'normal',
       location: displayUser?.location || '',
     })
     setImageUrl(null)
@@ -238,9 +292,15 @@ export default function GetHelp() {
     setSubmitting(false)
   }, [displayUser, form, imageUrl, location, address])
 
-  // Memoize filtered results to avoid recomputing on every render
+  const handleOfferHelp = useCallback((req) => {
+    navigate(`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName)}&avatar=${encodeURIComponent(req.userAvatar || '')}`)
+  }, [navigate])
+
   const filtered = React.useMemo(() => {
     let result = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
+    if (categoryFilter !== 'All') {
+      result = result.filter((r) => r.category === categoryFilter)
+    }
     if (distanceFilter && location) {
       result = result
         .filter((r) => r.lat && r.lng)
@@ -252,7 +312,7 @@ export default function GetHelp() {
         .sort((a, b) => a.distance - b.distance)
     }
     return result
-  }, [requests, filter, distanceFilter, location])
+  }, [requests, filter, categoryFilter, distanceFilter, location])
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -263,16 +323,17 @@ export default function GetHelp() {
             Submit a help request and let the community support you
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">Request Help</span>
-        </button>
+        {currentUser && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">Request Help</span>
+          </button>
+        )}
       </div>
 
-      {/* Form */}
       {showForm && (
         <div className="card p-6 mb-6">
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
@@ -305,7 +366,7 @@ export default function GetHelp() {
                 className="input-field resize-none"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Category
@@ -317,6 +378,20 @@ export default function GetHelp() {
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Urgency
+                </label>
+                <select
+                  value={form.urgency}
+                  onChange={(e) => setForm((f) => ({ ...f, urgency: e.target.value }))}
+                  className="input-field"
+                >
+                  {URGENCY_LEVELS.map((u) => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
                   ))}
                 </select>
               </div>
@@ -349,7 +424,7 @@ export default function GetHelp() {
                 {location && (
                   <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
                     <MapPin className="w-3 h-3" />
-                    Location will be saved with your request
+                    Location will be saved
                   </p>
                 )}
               </div>
@@ -388,44 +463,61 @@ export default function GetHelp() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
-        {['All', 'pending', 'in_progress', 'completed'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
-              filter === f
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            {f === 'in_progress' ? 'In Progress' : f}
-          </button>
-        ))}
-        {location && (
-          <button
-            onClick={() => setDistanceFilter((v) => !v)}
-            className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors border ${
-              distanceFilter
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            <Navigation className="w-3 h-3" />
-            Within 10 km
-          </button>
-        )}
+      {/* Status Filters */}
+      <div className="space-y-2 mb-5">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {['All', 'pending', 'in_progress', 'completed'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors capitalize ${
+                filter === f
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {f === 'in_progress' ? 'In Progress' : f}
+            </button>
+          ))}
+          {location && (
+            <button
+              onClick={() => setDistanceFilter((v) => !v)}
+              className={`shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors border ${
+                distanceFilter
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Navigation className="w-3 h-3" />
+              Within 10 km
+            </button>
+          )}
+        </div>
+
+        {/* Category Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {['All', ...CATEGORIES].map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategoryFilter(c)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                categoryFilter === c
+                  ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Loading */}
       {loading && (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
         </div>
       )}
 
-      {/* List */}
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filtered.map((req) => (
@@ -434,6 +526,7 @@ export default function GetHelp() {
               req={req}
               currentUser={currentUser}
               userLocation={location}
+              onOfferHelp={handleOfferHelp}
             />
           ))}
           {filtered.length === 0 && (

@@ -49,6 +49,7 @@ export const AuthProvider = ({ children }) => {
         lat: extra.lat || null,
         lng: extra.lng || null,
         isQC: extra.isQC !== undefined ? extra.isQC : null,
+        bio: extra.bio || '',
         role: isEnvAdmin ? 'admin' : 'member',
         createdAt: serverTimestamp(),
       })
@@ -143,6 +144,7 @@ export const AuthProvider = ({ children }) => {
         lat: userProfile?.lat || null,
         lng: userProfile?.lng || null,
         isQC: userProfile?.isQC ?? null,
+        bio: userProfile?.bio || '',
         role: isAdmin ? 'admin' : (userProfile?.role || 'member'),
       }
     : null
