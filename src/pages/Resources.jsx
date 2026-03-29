@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Loader2,
   BookOpen,
+  XCircle,
 } from 'lucide-react'
 
 const SEED_RESOURCES = [
@@ -224,8 +225,17 @@ export default function Resources() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search resources..."
-          className="input-field pl-9"
+          className="input-field pl-9 pr-9"
         />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            aria-label="Clear search"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Categories */}
@@ -244,6 +254,14 @@ export default function Resources() {
           </button>
         ))}
       </div>
+
+      {/* Result count */}
+      {!loading && (
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          {filtered.length} {filtered.length === 1 ? 'resource' : 'resources'} found
+          {search && <span className="ml-1">for "{search}"</span>}
+        </p>
+      )}
 
       {/* Resources grid */}
       {loading ? (

@@ -361,7 +361,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       {post.imageURL && !editing && (
         <img
           src={post.imageURL}
-          alt="Post"
+          alt={`Post image by ${post.userName || 'community member'}`}
           className="w-full object-cover max-h-80"
           loading="lazy"
         />

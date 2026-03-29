@@ -39,6 +39,10 @@ export default function GiveHelp() {
   const [myVolunteerDoc, setMyVolunteerDoc] = useState(null)
   const [checkingVolunteer, setCheckingVolunteer] = useState(true)
   const [togglingStatus, setTogglingStatus] = useState(false)
+  const [showAllRequests, setShowAllRequests] = useState(false)
+  const [editingSkills, setEditingSkills] = useState(false)
+  const [updatedSkills, setUpdatedSkills] = useState([])
+  const [savingSkills, setSavingSkills] = useState(false)
 
   useEffect(() => {
     const vq = query(collection(db, 'volunteers'), orderBy('helpCount', 'desc'))
@@ -105,6 +109,17 @@ export default function GiveHelp() {
     }
   }
 
+  const handleUpdateSkills = async () => {
+    if (!updatedSkills.length || !myVolunteerDoc) return
+    setSavingSkills(true)
+    await updateDoc(doc(db, 'volunteers', myVolunteerDoc.id), { skills: updatedSkills })
+    setSavingSkills(false)
+    setEditingSkills(false)
+  }
+
+  const toggleUpdatedSkill = (s) =>
+    setUpdatedSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
+
   const isRegistered = !!myVolunteerDoc
 
   return (
@@ -165,9 +180,60 @@ export default function GiveHelp() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-gray-400">
-              Toggle your availability so the community knows when you can help.
-            </p>
+
+            {/* Update Skills */}
+            {editingSkills ? (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Update your skills</p>
+                <div className="flex flex-wrap gap-2">
+                  {SKILL_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleUpdatedSkill(s)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                        updatedSkills.includes(s)
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleUpdateSkills}
+                    disabled={!updatedSkills.length || savingSkills}
+                    className="btn-primary text-sm disabled:opacity-60 flex items-center gap-1.5"
+                  >
+                    {savingSkills && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Save Skills
+                  </button>
+                  <button
+                    onClick={() => setEditingSkills(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  Toggle your availability so the community knows when you can help.
+                </p>
+                <button
+                  onClick={() => {
+                    setUpdatedSkills(myVolunteerDoc.skills || [])
+                    setEditingSkills(true)
+                  }}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium shrink-0 ml-3"
+                >
+                  Update skills
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="card p-6">
@@ -218,7 +284,7 @@ export default function GiveHelp() {
           </div>
         ) : (
           <div className="space-y-3">
-            {openRequests.slice(0, 5).map((req) => (
+            {(showAllRequests ? openRequests : openRequests.slice(0, 5)).map((req) => (
               <div
                 key={req.requestId}
                 className="card p-4 flex items-start justify-between gap-4 hover:border-primary-200 dark:hover:border-primary-800 transition-colors"
@@ -228,6 +294,8 @@ export default function GiveHelp() {
                     src={req.userAvatar}
                     alt={req.userName}
                     className="w-9 h-9 rounded-full shrink-0 mt-0.5 object-cover"
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(req.userName || 'U')}&background=2563eb&color=fff` }}
                   />
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-gray-900 dark:text-white">
@@ -265,6 +333,14 @@ export default function GiveHelp() {
                 <p className="text-gray-400 text-sm">No open requests right now. Check back soon!</p>
               </div>
             )}
+            {openRequests.length > 5 && (
+              <button
+                onClick={() => setShowAllRequests((v) => !v)}
+                className="text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline w-full text-center py-2"
+              >
+                {showAllRequests ? 'Show less' : `Show ${openRequests.length - 5} more requests`}
+              </button>
+            )}
           </div>
         )}
         <Link
@@ -289,6 +365,8 @@ export default function GiveHelp() {
                     src={v.avatar}
                     alt={v.name}
                     className="w-14 h-14 rounded-full object-cover"
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.name || 'U')}&background=2563eb&color=fff` }}
                   />
                   <span
                     className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 ${
@@ -299,7 +377,12 @@ export default function GiveHelp() {
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">{v.name}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {v.skills?.join(', ')}
+                  {v.skills?.slice(0, 2).join(', ')}
+                  {v.skills?.length > 2 && (
+                    <span className="ml-1 text-primary-600 dark:text-primary-400 font-medium">
+                      +{v.skills.length - 2} more
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
                   {v.helpCount} helped

@@ -524,7 +524,7 @@ export default function Messages() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message..."
+                placeholder="Type a message... (Enter to send)"
                 className="input-field flex-1"
               />
               <button

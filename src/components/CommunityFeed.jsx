@@ -112,19 +112,27 @@ export default function CommunityFeed() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">Community Feed</h2>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors active:scale-95 ${
-                filter === f
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+          {FILTERS.map((f) => {
+            const count = f === 'All' ? posts.length : posts.filter((p) => p.category === f).length
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`shrink-0 flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full transition-colors active:scale-95 ${
+                  filter === f
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {f}
+                {!loading && count > 0 && (
+                  <span className={`text-xs ${filter === f ? 'opacity-80' : 'opacity-60'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 

@@ -90,15 +90,22 @@ export default function Settings() {
     navigate('/login')
   }
 
+  const [nameError, setNameError] = useState('')
+
   const handleSave = async () => {
     if (!currentUser) return
+    if (!form.name.trim()) {
+      setNameError('Display name cannot be empty.')
+      return
+    }
+    setNameError('')
     setSaving(true)
     setSaved(false)
     const locationStr = form.barangay
       ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
       : form.location
     await updateDoc(doc(db, 'users', currentUser.uid), {
-      name: form.name.trim() || displayUser?.name,
+      name: form.name.trim(),
       location: locationStr,
       barangay: form.barangay || '',
       city: form.city || '',
@@ -201,10 +208,16 @@ export default function Settings() {
           <input
             type="text"
             value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="input-field"
+            onChange={(e) => {
+              setForm((f) => ({ ...f, name: e.target.value }))
+              if (e.target.value.trim()) setNameError('')
+            }}
+            className={`input-field ${nameError ? 'border-red-400 focus:ring-red-400' : ''}`}
             placeholder="Your full name"
           />
+          {nameError && (
+            <p className="text-xs text-red-500 mt-1">{nameError}</p>
+          )}
         </div>
 
         {/* Email (read-only) */}

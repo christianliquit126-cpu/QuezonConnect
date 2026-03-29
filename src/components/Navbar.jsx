@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle,
-  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map
+  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map, LogOut
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -50,12 +50,19 @@ function useUnreadMessages(currentUser) {
 }
 
 export default function Navbar() {
-  const { isLoggedIn, displayUser, currentUser, isAdmin } = useAuth()
+  const { isLoggedIn, displayUser, currentUser, isAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+
+  const handleLogout = async () => {
+    setProfileOpen(false)
+    await logout()
+    navigate('/login')
+  }
+
   const [search, setSearch] = useState('')
   const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
   const dropdownRef = useRef(null)
@@ -203,6 +210,14 @@ export default function Navbar() {
                           <Shield className="w-4 h-4" /> Admin Panel
                         </Link>
                       )}
+                      <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" /> Sign Out
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

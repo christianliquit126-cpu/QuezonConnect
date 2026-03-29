@@ -6,6 +6,7 @@ import {
   collection,
   query,
   where,
+  orderBy,
   onSnapshot,
   updateDoc,
   doc,
@@ -34,7 +35,8 @@ export default function NotificationBell() {
     if (!currentUser) return
     const q = query(
       collection(db, 'notifications'),
-      where('recipientUid', '==', currentUser.uid)
+      where('recipientUid', '==', currentUser.uid),
+      orderBy('createdAt', 'desc')
     )
     const unsub = onSnapshot(q, (snap) => {
       setNotifications(
@@ -44,7 +46,6 @@ export default function NotificationBell() {
             ...d.data(),
             createdAt: d.data().createdAt?.toDate() || new Date(),
           }))
-          .sort((a, b) => b.createdAt - a.createdAt)
           .slice(0, 30)
       )
     })

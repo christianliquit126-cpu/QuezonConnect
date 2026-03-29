@@ -44,6 +44,8 @@ export default function ActiveVolunteers() {
                 src={v.avatar}
                 alt={v.name}
                 className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-800"
+                loading="lazy"
+                onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.name || 'U')}&background=2563eb&color=fff&size=100` }}
               />
               <span
                 className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${

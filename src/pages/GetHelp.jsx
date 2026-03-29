@@ -101,10 +101,11 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <img
-            src={req.userAvatar}
+            src={req.userAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.userName || 'U')}&background=2563eb&color=fff`}
             alt={req.userName}
             className="w-9 h-9 rounded-full object-cover"
             loading="lazy"
+            onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(req.userName || 'U')}&background=2563eb&color=fff` }}
           />
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
@@ -225,7 +226,11 @@ export default function GetHelp() {
   const [filter, setFilter] = useState(categoryParam || 'All')
   const [categoryFilter, setCategoryFilter] = useState('All')
   const [distanceFilter, setDistanceFilter] = useState(false)
+  const [myRequestsOnly, setMyRequestsOnly] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
+
+  const TITLE_MAX = 100
+  const DESC_MAX = 500
 
   useEffect(() => {
     const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
@@ -301,6 +306,9 @@ export default function GetHelp() {
     if (categoryFilter !== 'All') {
       result = result.filter((r) => r.category === categoryFilter)
     }
+    if (myRequestsOnly && currentUser) {
+      result = result.filter((r) => r.uid === currentUser.uid)
+    }
     if (distanceFilter && location) {
       result = result
         .filter((r) => r.lat && r.lng)
@@ -312,7 +320,7 @@ export default function GetHelp() {
         .sort((a, b) => a.distance - b.distance)
     }
     return result
-  }, [requests, filter, categoryFilter, distanceFilter, location])
+  }, [requests, filter, categoryFilter, distanceFilter, myRequestsOnly, currentUser, location])
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -325,7 +333,15 @@ export default function GetHelp() {
         </div>
         {currentUser && (
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (!showForm && location && !form.location) {
+                const locStr = address?.barangay
+                  ? `${address.barangay}, ${address.city || 'QC'}`
+                  : `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+                setForm((f) => ({ ...f, location: locStr }))
+              }
+              setShowForm(!showForm)
+            }}
             className="btn-primary flex items-center gap-2"
           >
             <PlusCircle className="w-4 h-4" />
@@ -341,12 +357,18 @@ export default function GetHelp() {
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Title
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Title
+                </label>
+                <span className={`text-xs ${form.title.length >= TITLE_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                  {form.title.length}/{TITLE_MAX}
+                </span>
+              </div>
               <input
                 type="text"
                 required
+                maxLength={TITLE_MAX}
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="Brief summary of what you need"
@@ -354,11 +376,17 @@ export default function GetHelp() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Description
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Description
+                </label>
+                <span className={`text-xs ${form.description.length >= DESC_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                  {form.description.length}/{DESC_MAX}
+                </span>
+              </div>
               <textarea
                 required
+                maxLength={DESC_MAX}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Describe your situation in detail..."
@@ -479,6 +507,18 @@ export default function GetHelp() {
               {f === 'in_progress' ? 'In Progress' : f}
             </button>
           ))}
+          {currentUser && (
+            <button
+              onClick={() => setMyRequestsOnly((v) => !v)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors border ${
+                myRequestsOnly
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              My Requests
+            </button>
+          )}
           {location && (
             <button
               onClick={() => setDistanceFilter((v) => !v)}
@@ -510,6 +550,12 @@ export default function GetHelp() {
             </button>
           ))}
         </div>
+
+        {!loading && (
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {filtered.length} {filtered.length === 1 ? 'request' : 'requests'} found
+          </p>
+        )}
       </div>
 
       {loading && (

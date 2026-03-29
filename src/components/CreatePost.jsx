@@ -22,6 +22,15 @@ export default function CreatePost({ currentUser, onSubmit }) {
   const [loading, setLoading] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      if (content.trim() && content.length <= MAX_CHARS && !loading) {
+        handleSubmit(e)
+      }
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!content.trim() || content.length > MAX_CHARS) return
@@ -69,7 +78,8 @@ export default function CreatePost({ currentUser, onSubmit }) {
                   autoFocus
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Share something with the community..."
+                  onKeyDown={handleKeyDown}
+                  placeholder="Share something with the community... (Ctrl+Enter to post)"
                   rows={3}
                   className={`input-field resize-none ${isOverLimit ? 'ring-2 ring-red-400 border-red-400 focus:ring-red-400' : ''}`}
                 />
