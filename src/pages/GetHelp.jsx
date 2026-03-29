@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLocationCtx } from '../context/LocationContext'
 import { db } from '../firebase'
@@ -168,7 +169,9 @@ export default function GetHelp() {
     location: displayUser?.location || '',
   })
   const [submitting, setSubmitting] = useState(false)
-  const [filter, setFilter] = useState('All')
+  const routerLocation = useLocation()
+  const categoryParam = new URLSearchParams(routerLocation.search).get('category')
+  const [filter, setFilter] = useState(categoryParam || 'All')
   const [distanceFilter, setDistanceFilter] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
 

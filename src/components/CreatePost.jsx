@@ -13,6 +13,8 @@ const CATEGORIES = [
   'Other',
 ]
 
+const MAX_CHARS = 500
+
 export default function CreatePost({ currentUser, onSubmit }) {
   const [content, setContent] = useState('')
   const [category, setCategory] = useState('Other')
@@ -22,7 +24,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!content.trim()) return
+    if (!content.trim() || content.length > MAX_CHARS) return
     setLoading(true)
     await onSubmit?.({ content, category, imageURL: imageUrl || null })
     setContent('')
@@ -37,6 +39,10 @@ export default function CreatePost({ currentUser, onSubmit }) {
     setContent('')
     setImageUrl(null)
   }
+
+  const remaining = MAX_CHARS - content.length
+  const isNearLimit = remaining <= 100
+  const isOverLimit = remaining < 0
 
   return (
     <div className="card p-4">
@@ -58,14 +64,25 @@ export default function CreatePost({ currentUser, onSubmit }) {
             </button>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              <textarea
-                autoFocus
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Share something with the community..."
-                rows={3}
-                className="input-field resize-none"
-              />
+              <div className="relative">
+                <textarea
+                  autoFocus
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Share something with the community..."
+                  rows={3}
+                  className={`input-field resize-none ${isOverLimit ? 'ring-2 ring-red-400 border-red-400 focus:ring-red-400' : ''}`}
+                />
+                {isNearLimit && (
+                  <span
+                    className={`absolute bottom-2 right-3 text-xs font-medium ${
+                      isOverLimit ? 'text-red-500' : 'text-amber-500'
+                    }`}
+                  >
+                    {remaining}
+                  </span>
+                )}
+              </div>
 
               {imageUrl && (
                 <ImageUpload
@@ -102,7 +119,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
                   </button>
                   <button
                     type="submit"
-                    disabled={!content.trim() || loading}
+                    disabled={!content.trim() || loading || isOverLimit}
                     className="btn-primary text-sm disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

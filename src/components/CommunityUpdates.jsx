@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { ShieldCheck, ChevronRight, Loader2 } from 'lucide-react'
+import { ShieldCheck, ChevronRight, ChevronUp, Loader2 } from 'lucide-react'
 import { db } from '../firebase'
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 
 const TYPE_COLORS = {
   NEW: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -10,15 +10,17 @@ const TYPE_COLORS = {
   INFO: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
 }
 
+const PREVIEW_COUNT = 5
+
 export default function CommunityUpdates() {
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     const q = query(
       collection(db, 'communityUpdates'),
-      orderBy('createdAt', 'desc'),
-      limit(5)
+      orderBy('createdAt', 'desc')
     )
     const unsub = onSnapshot(q, (snap) => {
       setUpdates(
@@ -33,13 +35,25 @@ export default function CommunityUpdates() {
     return unsub
   }, [])
 
+  const visible = showAll ? updates : updates.slice(0, PREVIEW_COUNT)
+  const hasMore = updates.length > PREVIEW_COUNT
+
   return (
     <div className="card">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
         <h2 className="font-bold text-gray-900 dark:text-white">Community Updates</h2>
-        <button className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
-          View All <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        {hasMore && (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
+            {showAll ? (
+              <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
+            ) : (
+              <>View All <ChevronRight className="w-3.5 h-3.5" /></>
+            )}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -52,7 +66,7 @@ export default function CommunityUpdates() {
         </div>
       ) : (
         <div className="divide-y divide-gray-50 dark:divide-gray-800">
-          {updates.map((update) => (
+          {visible.map((update) => (
             <div key={update.id} className="flex gap-3 px-5 py-4">
               <span
                 className={`shrink-0 mt-0.5 text-xs font-semibold px-2 py-0.5 rounded-md h-fit ${

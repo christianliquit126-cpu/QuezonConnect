@@ -9,6 +9,11 @@ import {
   Trash2,
   X,
   Check,
+  Flag,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  CheckCheck,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -25,6 +30,11 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { createNotification } from '../services/notifications'
+
+const avatarFallback = (name) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=100`
+
+const READ_MORE_LIMIT = 300
 
 function PostMenu({ onEdit, onDelete, onClose }) {
   const ref = useRef(null)
@@ -70,12 +80,17 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [editContent, setEditContent] = useState(post.content)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [reported, setReported] = useState(false)
   const commentInputRef = useRef(null)
 
   const isOwner = currentUser?.uid === post.uid
   const canControl = isOwner || isAdmin
+  const canReport = currentUser && !isOwner && !isAdmin
   const liked = currentUser ? post.likes?.includes(currentUser.uid) : false
   const likeCount = post.likes?.length || 0
+  const isLong = post.content?.length > READ_MORE_LIMIT
 
   useEffect(() => {
     if (!showComments) return
@@ -157,6 +172,44 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     }
   }
 
+  const handleShare = async () => {
+    const text = `${post.content.slice(0, 120)}${post.content.length > 120 ? '...' : ''} — shared from QC Community`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'QC Community Post', text, url: window.location.origin })
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {}
+    }
+  }
+
+  const handleReport = async () => {
+    if (reported) return
+    if (!window.confirm('Report this post to moderators?')) return
+    try {
+      await addDoc(collection(db, 'reports'), {
+        targetType: 'post',
+        targetId: post.postId,
+        title: `Post by ${post.userName}`,
+        description: post.content.slice(0, 300),
+        reportedByUid: currentUser.uid,
+        reportedBy: currentUser.name,
+        reason: 'Reported by community member',
+        status: 'open',
+        createdAt: serverTimestamp(),
+      })
+      setReported(true)
+    } catch {}
+  }
+
+  const displayContent = isLong && !expanded
+    ? post.content.slice(0, READ_MORE_LIMIT) + '…'
+    : post.content
+
   return (
     <div
       className={`card overflow-hidden transition-opacity ${
@@ -167,9 +220,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
           <img
-            src={post.userAvatar}
+            src={post.userAvatar || avatarFallback(post.userName)}
             alt={post.userName}
             className="w-10 h-10 rounded-full object-cover"
+            onError={(e) => { e.currentTarget.src = avatarFallback(post.userName) }}
           />
           <div>
             <p className="font-semibold text-sm text-gray-900 dark:text-white">
@@ -255,9 +309,23 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-            {post.content}
-          </p>
+          <div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+              {displayContent}
+            </p>
+            {isLong && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="mt-1 flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
+              >
+                {expanded ? (
+                  <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
+                ) : (
+                  <><ChevronDown className="w-3.5 h-3.5" /> Read more</>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -294,10 +362,37 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           <MessageCircle className="w-4 h-4" />
           <span>{post.commentCount || 0}</span>
         </button>
-        <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 ml-auto transition-colors">
-          <Share2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Share</span>
-        </button>
+
+        <div className="flex items-center gap-3 ml-auto">
+          {canReport && (
+            <button
+              onClick={handleReport}
+              title={reported ? 'Reported' : 'Report post'}
+              className={`flex items-center gap-1 text-sm transition-colors ${
+                reported
+                  ? 'text-orange-400 cursor-default'
+                  : 'text-gray-400 hover:text-orange-500 dark:hover:text-orange-400'
+              }`}
+            >
+              <Flag className="w-3.5 h-3.5" />
+              {reported && <span className="text-xs hidden sm:inline">Reported</span>}
+            </button>
+          )}
+          <button
+            onClick={handleShare}
+            className={`flex items-center gap-1.5 text-sm transition-colors ${
+              copied
+                ? 'text-green-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400'
+            }`}
+          >
+            {copied ? (
+              <><CheckCheck className="w-4 h-4" /><span className="text-xs hidden sm:inline">Copied!</span></>
+            ) : (
+              <><Share2 className="w-4 h-4" /><span className="hidden sm:inline">Share</span></>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Comments */}
@@ -316,9 +411,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           {comments.map((c) => (
             <div key={c.commentId} className="flex gap-2.5">
               <img
-                src={c.userAvatar}
+                src={c.userAvatar || avatarFallback(c.userName)}
                 alt={c.userName}
                 className="w-7 h-7 rounded-full shrink-0 mt-0.5 object-cover"
+                onError={(e) => { e.currentTarget.src = avatarFallback(c.userName) }}
               />
               <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 flex-1">
                 <div className="flex items-center gap-2">
@@ -339,9 +435,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           {currentUser && (
             <form onSubmit={handleComment} className="flex gap-2.5">
               <img
-                src={currentUser.avatar}
+                src={currentUser.avatar || avatarFallback(currentUser.name)}
                 alt="You"
                 className="w-7 h-7 rounded-full shrink-0 mt-0.5 object-cover"
+                onError={(e) => { e.currentTarget.src = avatarFallback(currentUser.name) }}
               />
               <div className="flex-1 flex gap-2">
                 <input

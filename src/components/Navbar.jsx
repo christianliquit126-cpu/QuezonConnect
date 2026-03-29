@@ -9,6 +9,7 @@ import {
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { saveSearch } from '../hooks/useSearchHistory'
 
 const navLinks = [
   { to: '/', label: 'Home', icon: Home },
@@ -76,6 +77,7 @@ export default function Navbar() {
 
   const handleSearch = (e) => {
     if (e.key === 'Enter' && search.trim()) {
+      saveSearch(search.trim())
       navigate(`/resources?q=${encodeURIComponent(search.trim())}`)
       setSearch('')
     }
@@ -183,6 +185,12 @@ export default function Navbar() {
                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       >
                         <User className="w-4 h-4" /> Profile
+                      </Link>
+                      <Link
+                        to="/settings"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        <Settings className="w-4 h-4" /> Settings
                       </Link>
                       {isAdmin && (
                         <Link

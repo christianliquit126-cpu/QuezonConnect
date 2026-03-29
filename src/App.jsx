@@ -6,6 +6,7 @@ import { LocationProvider } from './context/LocationContext'
 import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import OfflineBanner from './components/OfflineBanner'
+import BackToTop from './components/BackToTop'
 import Home from './pages/Home'
 import FirebaseSetup from './components/FirebaseSetup'
 import { Loader2 } from 'lucide-react'
@@ -46,6 +47,7 @@ const AppRoutes = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
       <OfflineBanner />
+      <BackToTop />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Home />} />

@@ -17,12 +17,10 @@ const CATEGORY_CONFIG = [
 
 export default function Categories() {
   const navigate = useNavigate()
-  // null = still loading, object = loaded
   const [postCounts, setPostCounts] = useState(null)
   const [requestCounts, setRequestCounts] = useState(null)
 
   useEffect(() => {
-    // Count from community posts
     const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
       const tally = {}
       snap.docs.forEach((d) => {
@@ -32,7 +30,6 @@ export default function Categories() {
       setPostCounts(tally)
     })
 
-    // Count from help requests
     const unsubRequests = onSnapshot(collection(db, 'helpRequests'), (snap) => {
       const tally = {}
       snap.docs.forEach((d) => {
@@ -64,7 +61,7 @@ export default function Categories() {
           return (
             <button
               key={label}
-              onClick={() => navigate('/get-help')}
+              onClick={() => navigate(`/get-help?category=${encodeURIComponent(filter)}`)}
               className="card p-4 flex flex-col items-center gap-2 hover:border-primary-200 dark:hover:border-primary-800 transition-colors group"
             >
               <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center`}>
