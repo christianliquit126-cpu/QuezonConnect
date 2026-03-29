@@ -166,7 +166,7 @@ kill 1   # restart to pick up env vars
 - Real-time listener in NotificationBell via Firestore onSnapshot
 - Unread count badge, "Mark all read" batch update
 - **Clickable notifications**: each notification navigates to `n.link` and marks itself as read individually on click
-- **Type icons**: 🔔 default, ❤️ like, 💬 comment, ✉️ message, 🙌 help, 🤝 volunteer
+- **Type icons**: Lucide icon per notification type (Heart for like, MessageCircle for comment, Mail for message, Bell for help, Users for volunteer)
 - **Better empty state**: BellOff icon with descriptive message
 - `ProximityNotificationListener.jsx` — silent component on Home that notifies logged-in users when a new helpRequest appears within 3km
 

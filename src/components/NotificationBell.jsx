@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Heart, MessageCircle, Mail, Users, Megaphone } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -14,13 +14,13 @@ import {
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 
-const TYPE_ICONS = {
-  like: '❤️',
-  comment: '💬',
-  message: '✉️',
-  help: '🙌',
-  volunteer: '🤝',
-  system: '📢',
+const TYPE_CONFIG = {
+  like: { icon: Heart, color: 'text-red-500' },
+  comment: { icon: MessageCircle, color: 'text-blue-500' },
+  message: { icon: Mail, color: 'text-primary-500' },
+  help: { icon: Bell, color: 'text-orange-500' },
+  volunteer: { icon: Users, color: 'text-green-500' },
+  system: { icon: Megaphone, color: 'text-gray-500' },
 }
 
 export default function NotificationBell() {
@@ -128,7 +128,10 @@ export default function NotificationBell() {
                 <p className="text-xs text-gray-400 mt-1">We'll notify you when something happens</p>
               </div>
             ) : (
-              notifications.map((n) => (
+              notifications.map((n) => {
+                const cfg = TYPE_CONFIG[n.type] || { icon: Bell, color: 'text-gray-400' }
+                const TypeIcon = cfg.icon
+                return (
                 <button
                   key={n.id}
                   onClick={() => handleClickNotification(n)}
@@ -136,9 +139,7 @@ export default function NotificationBell() {
                     !n.read ? 'bg-primary-50/60 dark:bg-primary-900/10' : ''
                   }`}
                 >
-                  <span className="text-lg shrink-0 mt-0.5">
-                    {TYPE_ICONS[n.type] || '🔔'}
-                  </span>
+                  <TypeIcon className={`w-4 h-4 shrink-0 mt-0.5 ${cfg.color}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-800 dark:text-gray-200 leading-snug">{n.message}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
@@ -149,7 +150,8 @@ export default function NotificationBell() {
                     <div className="w-2 h-2 bg-primary-500 rounded-full shrink-0 mt-1.5" />
                   )}
                 </button>
-              ))
+                )
+              })
             )}
           </div>
         </div>
