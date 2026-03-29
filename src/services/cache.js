@@ -1,4 +1,4 @@
-const DEFAULT_TTL_MS = 10 * 60 * 1000 // 10 minutes
+const DEFAULT_TTL_MS = 10 * 60 * 1000
 
 export const cacheSet = (key, value, ttlMs = DEFAULT_TTL_MS) => {
   try {
@@ -22,7 +22,6 @@ export const cacheGet = (key, ttlMs) => {
   }
 }
 
-// Returns stale value even if expired — for background refresh pattern
 export const cacheGetStale = (key) => {
   try {
     const raw = localStorage.getItem(key)
@@ -37,7 +36,6 @@ export const cacheDelete = (key) => {
   try { localStorage.removeItem(key) } catch {}
 }
 
-// Purge all expired QCC cache entries to keep localStorage clean
 export const cleanExpiredCache = () => {
   try {
     const now = Date.now()
@@ -55,4 +53,36 @@ export const cleanExpiredCache = () => {
     }
     toDelete.forEach((k) => localStorage.removeItem(k))
   } catch {}
+}
+
+// ─── Location History ──────────────────────────────────────────────────────────
+const LOCATION_HISTORY_KEY = 'qcc_location_history'
+const MAX_LOCATION_HISTORY = 5
+
+export const saveLocationHistory = (lat, lng, label = '') => {
+  try {
+    const raw = localStorage.getItem(LOCATION_HISTORY_KEY)
+    const history = raw ? JSON.parse(raw) : []
+    const entry = { lat, lng, label, ts: Date.now() }
+    const deduped = history.filter(
+      (h) => Math.abs(h.lat - lat) > 0.001 || Math.abs(h.lng - lng) > 0.001
+    )
+    deduped.unshift(entry)
+    localStorage.setItem(
+      LOCATION_HISTORY_KEY,
+      JSON.stringify(deduped.slice(0, MAX_LOCATION_HISTORY))
+    )
+  } catch {}
+}
+
+export const getLocationHistory = () => {
+  try {
+    return JSON.parse(localStorage.getItem(LOCATION_HISTORY_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+export const clearLocationHistory = () => {
+  try { localStorage.removeItem(LOCATION_HISTORY_KEY) } catch {}
 }

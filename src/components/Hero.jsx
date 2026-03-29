@@ -1,17 +1,33 @@
 import React, { useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Clock, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import EmergencyQuickMode from './EmergencyQuickMode'
+import useSearchHistory from '../hooks/useSearchHistory'
+import { trackSearch } from '../services/analytics'
 
 const POPULAR_TAGS = ['Food Assistance', 'Medical Transport', 'School Supplies', 'Flood Help']
 
 export default function Hero({ userName }) {
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
+  const { history, save: saveSearch } = useSearchHistory()
 
   const handleSearch = (e) => {
     e.preventDefault()
-    if (query.trim()) navigate(`/resources?q=${encodeURIComponent(query)}`)
+    const q = query.trim()
+    if (!q) return
+    saveSearch(q)
+    trackSearch(q)
+    navigate(`/resources?q=${encodeURIComponent(q)}`)
   }
+
+  const handleTag = (tag) => {
+    saveSearch(tag)
+    trackSearch(tag)
+    navigate(`/resources?q=${encodeURIComponent(tag)}`)
+  }
+
+  const recentSearches = history.filter((h) => !POPULAR_TAGS.includes(h)).slice(0, 3)
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-blue-950 dark:via-gray-900 dark:to-blue-900 border border-blue-100 dark:border-blue-900">
@@ -43,30 +59,45 @@ export default function Hero({ userName }) {
         </form>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <EmergencyQuickMode />
+
           <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Popular:</span>
           {POPULAR_TAGS.map(tag => (
             <button
               key={tag}
-              onClick={() => navigate(`/resources?q=${encodeURIComponent(tag)}`)}
+              onClick={() => handleTag(tag)}
               className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-full hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
               {tag}
             </button>
           ))}
         </div>
+
+        {recentSearches.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+            <span className="text-xs text-gray-400">Recent:</span>
+            {recentSearches.map((s) => (
+              <button
+                key={s}
+                onClick={() => handleTag(s)}
+                className="text-xs bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 px-2.5 py-0.5 rounded-full hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Decorative illustration area */}
       <div className="absolute right-0 top-0 bottom-0 w-64 hidden lg:block">
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative">
-            {/* Abstract community illustration using CSS shapes */}
             <div className="w-48 h-48 bg-blue-200/40 dark:bg-blue-800/30 rounded-full flex items-center justify-center">
               <div className="w-32 h-32 bg-blue-300/40 dark:bg-blue-700/30 rounded-full flex items-center justify-center">
                 <div className="w-16 h-16 bg-primary-400/50 dark:bg-primary-600/40 rounded-full" />
               </div>
             </div>
-            {/* Accent dots */}
             <div className="absolute -top-4 left-8 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
               <div className="w-5 h-5 bg-primary-400 dark:bg-primary-500 rounded-full" />
             </div>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { cacheGet, cacheSet } from '../services/cache'
+import { cacheGet, cacheSet, saveLocationHistory } from '../services/cache'
 
 const LOCATION_CACHE_KEY = 'qcc_last_location'
 const LOCATION_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
@@ -118,6 +118,10 @@ export default function useGeolocation() {
         if (!abortRef.current) {
           setAddress(addrData)
           lastGeocodedLocRef.current = { lat, lng }
+          const label = addrData?.barangay
+            ? `${addrData.barangay}, ${addrData.city || 'QC'}`
+            : addrData?.city || ''
+          saveLocationHistory(lat, lng, label)
         }
       }
     }

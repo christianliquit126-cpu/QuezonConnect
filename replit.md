@@ -156,9 +156,85 @@ kill 1   # restart to pick up env vars
 
 ## Notification System
 - `src/services/notifications.js` — `createNotification()` helper
-- Triggered on: comment on your post, new message received
+- Triggered on: comment on your post, new message received, nearby help request (proximity alert)
 - Real-time listener in NotificationBell via Firestore onSnapshot
 - Unread count badge, "Mark all read" batch update
+- `ProximityNotificationListener.jsx` — silent component on Home that notifies logged-in users when a new helpRequest appears within 3km
+
+## Advanced Features (Added)
+
+### Emergency Quick Mode
+- Red "Find Help Now" button in Hero section
+- Auto-detects user location and shows 6 nearest hospitals + police stations
+- Each entry has Call button and "Open Directions" (Google Maps) button
+- Sorted by distance with hospital priority
+
+### User Reporting System
+- Floating "Report Incident" button (bottom-right, small pill)
+- Minimal form: title, description, location (auto-filled from GPS)
+- Saves to Firestore `reports` collection with coordinates
+- Visible in Admin panel under the Reports tab
+
+### Direction Integration
+- "Open Directions" button on NearbyHelp request rows (visible on hover)
+- "Open Directions" on EmergencyQuickMode place entries
+- "Open Directions" on SmartSuggestions entries
+- All open Google Maps with exact coordinates
+
+### Smart Suggestions
+- `SmartSuggestions.jsx` in Home sidebar
+- Shows nearest hospital, police, community, and donation center
+- Auto-updates when location is detected
+- Each row shows distance, type badge, call + directions on hover
+
+### Category Prioritization
+- Medical and Safety help requests get weighted priority in NearbyHelp sort
+- Emergency categories shown with a red "Priority" badge
+- Sort uses distance + category weight (0 for Medical, 0.05 for Safety)
+
+### Search History
+- Searches saved to localStorage (max 5 recent)
+- Recent searches shown as small chips in Hero below popular tags
+- `src/hooks/useSearchHistory.js` — save/load/clear helpers
+
+### Location History
+- Successful geocode results saved to localStorage (max 5 entries)
+- `saveLocationHistory()` in `src/services/cache.js`
+- Auto-called from useGeolocation on successful reverse geocode
+- Used for faster reload (existing location fallback in useGeolocation)
+
+### Basic Analytics
+- `trackLocationView(placeType)` — tracks which place types are viewed
+- `trackSearch(category)` — tracks search queries/categories
+- `trackLoadTime()` — captures page load time via Navigation Timing API
+- `trackApiCall(name, startTime)` — logs API response durations
+- `getMostViewedLocations()` / `getMostSearched()` — query analytics
+- All stored silently in localStorage, no UI change
+
+### Performance Monitoring
+- `trackLoadTime()` called on `window.load` in `main.jsx`
+- Captures Navigation Timing API load time silently
+- Logged as `page_load` analytics event
+
+### Low Performance Mode
+- `src/hooks/useLowPerfMode.js` — detects slow connections via Network Information API
+- Returns `isLowPerf` boolean based on `saveData`, `effectiveType`, `downlink`
+- Already used in `overpass.js` via `getAdaptiveFetchLimit()`
+- Cached in sessionStorage to avoid repeated checks
+
+### PWA Support
+- `public/manifest.json` — full PWA manifest (name, icons, theme color, display: standalone)
+- `public/sw.js` — service worker with install/activate/fetch handlers
+- Caches app shell (index.html) for basic offline support
+- Registered in `main.jsx` on `window.load`
+- Apple PWA meta tags in `index.html`
+
+### Branding & Metadata
+- Improved `index.html` with keywords, author, application-name
+- Full Open Graph tags (og:type, og:site_name, og:locale)
+- Twitter Card meta tags
+- Apple PWA meta tags (apple-mobile-web-app-capable, title, icon)
+- `theme-color` meta for browser chrome color
 
 ## Dev Server
 - Host: 0.0.0.0, Port: 5000

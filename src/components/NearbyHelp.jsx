@@ -3,10 +3,21 @@ import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useLocationCtx } from '../context/LocationContext'
 import { haversine, formatDistance } from '../data/qcPlaces'
-import { MapPin, Navigation, Loader2, AlertCircle, ArrowRight, RefreshCw, CheckCircle, WifiOff } from 'lucide-react'
+import { MapPin, Navigation, Loader2, AlertCircle, ArrowRight, RefreshCw, CheckCircle, WifiOff, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import clsx from 'clsx'
+import { logEvent, trackLocationView } from '../services/analytics'
+
+const EMERGENCY_PRIORITY = { Medical: 0, Safety: 0.05 }
+const openDirections = (lat, lng) => {
+  logEvent('directions_opened', { source: 'nearby_help' })
+  window.open(
+    `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+    '_blank',
+    'noopener,noreferrer'
+  )
+}
 
 const RADIUS_KM = 8
 const MAX_DISPLAY = 5
@@ -81,8 +92,9 @@ function NearbyHelpSkeleton() {
 
 // Memoized request row to avoid re-rendering unchanged items
 const RequestRow = memo(function RequestRow({ req, catColor, isFirst }) {
+  const isEmergency = req.category === 'Medical' || req.category === 'Safety'
   return (
-    <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+    <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group">
       {req.userAvatar ? (
         <img
           src={req.userAvatar}
@@ -107,6 +119,11 @@ const RequestRow = memo(function RequestRow({ req, catColor, isFirst }) {
               Nearest
             </span>
           )}
+          {isEmergency && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 shrink-0">
+              Priority
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
           <span className={clsx('text-[11px] font-medium px-1.5 py-0.5 rounded-full', catColor)}>
@@ -121,6 +138,15 @@ const RequestRow = memo(function RequestRow({ req, catColor, isFirst }) {
           </span>
         </div>
       </div>
+      {req.lat && req.lng && (
+        <button
+          onClick={() => openDirections(req.lat, req.lng)}
+          title="Open Directions"
+          className="shrink-0 p-1.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   )
 })
@@ -167,7 +193,7 @@ export default function NearbyHelp() {
     return () => clearInterval(id)
   }, [location])
 
-  // Memoize nearby filtered+sorted requests from raw snapshot data
+  // Memoize nearby filtered+sorted requests with category priority weighting
   const requests = useMemo(() => {
     if (!location || !allRequests.length) return []
     return allRequests
@@ -181,7 +207,11 @@ export default function NearbyHelp() {
         ...r,
         distance: haversine(location.lat, location.lng, r.lat, r.lng),
       }))
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => {
+        const pa = EMERGENCY_PRIORITY[a.category] ?? 0.3
+        const pb = EMERGENCY_PRIORITY[b.category] ?? 0.3
+        return (a.distance + pa) - (b.distance + pb)
+      })
   }, [allRequests, location])
 
   // Show skeleton while location is actively being detected

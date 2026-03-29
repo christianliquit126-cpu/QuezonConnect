@@ -7,12 +7,17 @@ import CommunityFeed from '../components/CommunityFeed'
 import CommunityUpdates from '../components/CommunityUpdates'
 import ActiveVolunteers from '../components/ActiveVolunteers'
 import NearbyHelp from '../components/NearbyHelp'
+import SmartSuggestions from '../components/SmartSuggestions'
+import ReportIncident from '../components/ReportIncident'
+import ProximityNotificationListener from '../components/ProximityNotificationListener'
 
 export default function Home() {
   const { displayUser } = useAuth()
 
   return (
     <main className="w-full">
+      <ProximityNotificationListener />
+
       {/* Hero */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-4 py-6 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -35,6 +40,7 @@ export default function Home() {
           {/* Sidebar */}
           <div className="space-y-6">
             <NearbyHelp />
+            <SmartSuggestions />
             <CommunityUpdates />
           </div>
         </div>
@@ -45,6 +51,9 @@ export default function Home() {
         {/* Categories */}
         <Categories />
       </div>
+
+      {/* Floating Report Incident button */}
+      <ReportIncident />
     </main>
   )
 }
