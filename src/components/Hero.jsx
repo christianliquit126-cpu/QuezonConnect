@@ -95,7 +95,9 @@ export default function Hero({ userName }) {
           <div className="relative">
             <div className="w-48 h-48 bg-blue-200/40 dark:bg-blue-800/30 rounded-full flex items-center justify-center">
               <div className="w-32 h-32 bg-blue-300/40 dark:bg-blue-700/30 rounded-full flex items-center justify-center">
-                <div className="w-16 h-16 bg-primary-400/50 dark:bg-primary-600/40 rounded-full" />
+                <div className="w-16 h-16 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center shadow-md">
+                  <img src="/logo.png" alt="QC Community" className="w-12 h-12 object-contain" />
+                </div>
               </div>
             </div>
             <div className="absolute -top-4 left-8 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">

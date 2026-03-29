@@ -15,7 +15,6 @@ import {
   MessageCircle,
   CheckCircle2,
   Map,
-  Settings,
   Clock,
   AlertCircle,
   FileText,
@@ -155,13 +154,6 @@ export default function Profile() {
             </div>
           </div>
 
-          <Link
-            to="/settings"
-            className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            title="Edit profile in Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </Link>
         </div>
 
         {/* Bio */}
