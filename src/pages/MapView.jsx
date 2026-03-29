@@ -3,6 +3,8 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
+  memo,
 } from 'react'
 import {
   MapContainer,
@@ -30,6 +32,8 @@ import {
   QC_CENTER,
 } from '../data/qcPlaces'
 import { fetchNearbyPlaces, hasMovedSignificantly } from '../services/overpass'
+import { cleanExpiredCache } from '../services/cache'
+import { logEvent } from '../services/analytics'
 import {
   MapPin,
   Navigation,
@@ -145,10 +149,12 @@ function LocateMeButton({ onClick, loading }) {
 
 // ─── OSRM route fetch ─────────────────────────────────────────────────────────
 
-const fetchRoute = async (fromLat, fromLng, toLat, toLng) => {
+const fetchRoute = async (fromLat, fromLng, toLat, toLng, signal) => {
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    const res = await fetch(url, {
+      signal: signal ?? AbortSignal.timeout(8000),
+    })
     const data = await res.json()
     if (data.code === 'Ok' && data.routes?.length > 0) {
       const route = data.routes[0]
@@ -158,7 +164,9 @@ const fetchRoute = async (fromLat, fromLng, toLat, toLng) => {
         duration: route.legs[0].duration,
       }
     }
-  } catch {}
+  } catch (err) {
+    if (err.name === 'AbortError') return null
+  }
   return null
 }
 
@@ -211,7 +219,7 @@ function LocationStatusPill({ locationStatus, accuracy, locationSource, onRetry 
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function SidebarContent({
+const SidebarContent = memo(function SidebarContent({
   location,
   address,
   locLoading,
@@ -240,10 +248,13 @@ function SidebarContent({
 }) {
   const cfg = selectedPlace ? PLACE_CONFIG[selectedPlace.type] : null
 
-  const filteredPlaces =
-    typeFilter === 'all'
-      ? nearbyPlaces
-      : nearbyPlaces.filter((p) => p.type === typeFilter)
+  const filteredPlaces = useMemo(
+    () =>
+      typeFilter === 'all'
+        ? nearbyPlaces
+        : nearbyPlaces.filter((p) => p.type === typeFilter),
+    [nearbyPlaces, typeFilter]
+  )
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -605,6 +616,7 @@ function SidebarContent({
                         src={req.userAvatar}
                         alt={req.userName}
                         className="w-8 h-8 rounded-full object-cover shrink-0"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 flex items-center justify-center">
@@ -640,7 +652,7 @@ function SidebarContent({
       </div>
     </div>
   )
-}
+})
 
 // ─── Main MapView ─────────────────────────────────────────────────────────────
 
@@ -673,10 +685,11 @@ export default function MapView() {
   const [placesLoading, setPlacesLoading] = useState(false)
   const [placesError, setPlacesError]     = useState(false)
 
-  const listRef          = useRef(null)
-  const selectedItemRef  = useRef(null)
-  const lastFetchedLoc   = useRef(null)  // tracks last location we fetched for
-  const fetchAbortRef    = useRef(null)  // AbortController for in-flight fetch
+  const listRef         = useRef(null)
+  const selectedItemRef = useRef(null)
+  const lastFetchedLoc  = useRef(null)  // tracks last location we fetched for
+  const fetchAbortRef   = useRef(null)  // AbortController for in-flight place fetch
+  const routeAbortRef   = useRef(null)  // AbortController for in-flight route fetch
 
   const tileUrl =
     theme === 'dark'
@@ -686,18 +699,27 @@ export default function MapView() {
   const attribution =
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
+  // Clean expired cache once on mount
+  useEffect(() => {
+    cleanExpiredCache()
+  }, [])
+
   // ── Fetch live places from Overpass when location changes ──────────────────
 
-  const loadNearbyPlaces = useCallback(async (lat, lng, force = false) => {
+  const loadNearbyPlaces = useCallback(async (lat, lng, force = false, silent = false) => {
     if (!force && !hasMovedSignificantly(lastFetchedLoc.current, { lat, lng })) return
 
-    // Cancel any in-flight request
+    // Cancel any in-flight place request
     if (fetchAbortRef.current) fetchAbortRef.current.abort()
     const controller = new AbortController()
     fetchAbortRef.current = controller
 
     lastFetchedLoc.current = { lat, lng }
-    setPlacesLoading(true)
+
+    // Only show loading indicator on non-silent refreshes or when we have no data
+    if (!silent || nearbyPlaces.length === 0) {
+      setPlacesLoading(true)
+    }
     setPlacesError(false)
 
     try {
@@ -724,7 +746,7 @@ export default function MapView() {
     } finally {
       setPlacesLoading(false)
     }
-  }, [])
+  }, [nearbyPlaces.length])
 
   // Trigger fetch whenever location changes
   useEffect(() => {
@@ -732,10 +754,20 @@ export default function MapView() {
     loadNearbyPlaces(location.lat, location.lng)
   }, [location?.lat, location?.lng, loadNearbyPlaces])
 
+  // Background silent refresh every 3 minutes
+  useEffect(() => {
+    if (!location) return
+    const intervalId = setInterval(() => {
+      loadNearbyPlaces(location.lat, location.lng, true, true)
+    }, 3 * 60 * 1000)
+    return () => clearInterval(intervalId)
+  }, [location?.lat, location?.lng, loadNearbyPlaces])
+
   // Manual refresh
   const handleRefresh = useCallback(() => {
     if (!location) { detect(); return }
     loadNearbyPlaces(location.lat, location.lng, true)
+    logEvent('map_refresh', { lat: location.lat, lng: location.lng })
   }, [location, detect, loadNearbyPlaces])
 
   // ── Auto-pan map when location detected ───────────────────────────────────
@@ -794,11 +826,26 @@ export default function MapView() {
       setMapZoom(16)
       setRoute(null)
 
+      logEvent('place_click', { type: place.type, name: place.name })
+
       if (!location) return
+
+      // Cancel any in-flight route request
+      if (routeAbortRef.current) routeAbortRef.current.abort()
+      const routeController = new AbortController()
+      routeAbortRef.current = routeController
+
       setLoadingRoute(true)
-      const r = await fetchRoute(location.lat, location.lng, place.lat, place.lng)
-      setRoute(r)
-      setLoadingRoute(false)
+      const r = await fetchRoute(
+        location.lat, location.lng,
+        place.lat, place.lng,
+        routeController.signal
+      )
+      if (!routeController.signal.aborted) {
+        setRoute(r)
+        setLoadingRoute(false)
+        if (r) logEvent('route_calculated', { distance: r.distance, duration: r.duration })
+      }
     },
     [location]
   )
@@ -806,6 +853,7 @@ export default function MapView() {
   const handleClearRoute = useCallback(() => {
     setSelectedPlace(null)
     setRoute(null)
+    if (routeAbortRef.current) routeAbortRef.current.abort()
   }, [])
 
   const handlePanToPlace = useCallback((place) => {
@@ -819,7 +867,7 @@ export default function MapView() {
   const defaultZoom   = 13
   const mapHeight     = 'calc(100vh - 64px)'
 
-  const sidebarProps = {
+  const sidebarProps = useMemo(() => ({
     location,
     address,
     locLoading,
@@ -845,7 +893,12 @@ export default function MapView() {
     onPanToPlace: handlePanToPlace,
     listRef,
     selectedItemRef,
-  }
+  }), [
+    location, address, locLoading, locError, locationStatus, locationSource,
+    accuracy, detect, activeTab, typeFilter, nearbyPlaces, placesLoading,
+    placesError, handleRefresh, nearbyRequests, selectedPlace, handlePlaceClick,
+    route, loadingRoute, handleClearRoute, handlePanToPlace,
+  ])
 
   return (
     <div style={{ display: 'flex', height: mapHeight, overflow: 'hidden' }}>
@@ -866,12 +919,12 @@ export default function MapView() {
         </div>
       </div>
 
-      {/* Map area */}
+      {/* Map area — position:relative creates a proper containing block */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0 }}>
         <MapContainer
           center={defaultCenter}
           zoom={defaultZoom}
-          style={{ width: '100%', height: mapHeight }}
+          style={{ width: '100%', height: '100%' }}
           zoomControl={false}
           attributionControl
         >

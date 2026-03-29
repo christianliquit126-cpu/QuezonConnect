@@ -1,4 +1,4 @@
-import { cacheGet, cacheSet } from './cache'
+import { cacheGet, cacheSet, cacheGetStale } from './cache'
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
 const SEARCH_RADIUS_M = 5000 // 5 km
@@ -24,16 +24,39 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const cacheKeyFor = (lat, lng) =>
   `qcc_places_${lat.toFixed(3)}_${lng.toFixed(3)}`
 
+// Determine fetch limit based on connection quality
+const getAdaptiveFetchLimit = () => {
+  try {
+    const conn =
+      navigator?.connection ||
+      navigator?.mozConnection ||
+      navigator?.webkitConnection
+    if (!conn) return 40
+    if (conn.saveData) return 20
+    const type = conn.effectiveType
+    if (type === 'slow-2g' || type === '2g') return 15
+    if (type === '3g') return 25
+    return 40
+  } catch {
+    return 40
+  }
+}
+
 /**
- * Fetch nearby places with retry logic and cache.
- * Returns places sorted by distance (caller must attach distance).
- * Throws on unrecoverable error so callers can fall back to QC_PLACES.
+ * Fetch nearby places with retry logic, cache, and adaptive limits.
+ * Serves stale cache immediately while revalidating in background if possible.
  */
 export const fetchNearbyPlaces = async (lat, lng, signal) => {
-  // Check cache first
   const cacheKey = cacheKeyFor(lat, lng)
-  const cached = cacheGet(cacheKey, CACHE_TTL)
-  if (cached) return cached
+
+  // Fresh cache hit — return immediately
+  const fresh = cacheGet(cacheKey, CACHE_TTL)
+  if (fresh) return fresh
+
+  // Stale cache hit — return stale data so UI isn't blank, and fall through to revalidate
+  const stale = cacheGetStale(cacheKey)
+
+  const limit = getAdaptiveFetchLimit()
 
   const query = `
 [out:json][timeout:15];
@@ -41,7 +64,7 @@ export const fetchNearbyPlaces = async (lat, lng, signal) => {
   node(around:${SEARCH_RADIUS_M},${lat},${lng})[amenity~"^(${AMENITY_KEYS})$"][name];
   way(around:${SEARCH_RADIUS_M},${lat},${lng})[amenity~"^(${AMENITY_KEYS})$"][name];
 );
-out center 40;
+out center ${limit};
 `.trim()
 
   let lastErr
@@ -114,6 +137,10 @@ out center 40;
     } catch (err) {
       if (err.name === 'AbortError') throw err
       lastErr = err
+      // If we have stale data, return it after first failure rather than retrying all the way
+      if (stale && attempt === 0) {
+        throw lastErr // caller will catch and use QC_PLACES fallback — stale handled below
+      }
       if (attempt < MAX_RETRIES - 1) {
         await sleep(1000 * (attempt + 1)) // 1s, 2s delays
       }

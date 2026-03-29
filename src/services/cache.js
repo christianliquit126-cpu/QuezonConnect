@@ -22,6 +22,37 @@ export const cacheGet = (key, ttlMs) => {
   }
 }
 
+// Returns stale value even if expired — for background refresh pattern
+export const cacheGetStale = (key) => {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    return JSON.parse(raw).value ?? null
+  } catch {
+    return null
+  }
+}
+
 export const cacheDelete = (key) => {
   try { localStorage.removeItem(key) } catch {}
+}
+
+// Purge all expired QCC cache entries to keep localStorage clean
+export const cleanExpiredCache = () => {
+  try {
+    const now = Date.now()
+    const toDelete = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key?.startsWith('qcc_')) continue
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key))
+        const maxAge = parsed?.ttl ?? DEFAULT_TTL_MS
+        if (parsed?.ts && now - parsed.ts > maxAge) toDelete.push(key)
+      } catch {
+        toDelete.push(key)
+      }
+    }
+    toDelete.forEach((k) => localStorage.removeItem(k))
+  } catch {}
 }

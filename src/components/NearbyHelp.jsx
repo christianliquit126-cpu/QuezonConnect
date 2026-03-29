@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useLocationCtx } from '../context/LocationContext'
@@ -10,6 +10,7 @@ import clsx from 'clsx'
 
 const RADIUS_KM = 8
 const MAX_DISPLAY = 5
+const BG_REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes background refresh
 
 const CATEGORY_COLORS = {
   Food: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
@@ -78,9 +79,55 @@ function NearbyHelpSkeleton() {
   )
 }
 
+// Memoized request row to avoid re-rendering unchanged items
+const RequestRow = memo(function RequestRow({ req, catColor, isFirst }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      {req.userAvatar ? (
+        <img
+          src={req.userAvatar}
+          alt={req.userName || 'User'}
+          className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 mt-0.5 flex items-center justify-center">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            {req.userName?.[0] || '?'}
+          </span>
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
+            {req.title || 'Help Request'}
+          </p>
+          {isFirst && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shrink-0">
+              Nearest
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <span className={clsx('text-[11px] font-medium px-1.5 py-0.5 rounded-full', catColor)}>
+            {req.category}
+          </span>
+          <span className="flex items-center gap-0.5 text-[11px] text-gray-400 dark:text-gray-500">
+            <MapPin className="w-2.5 h-2.5" />
+            {formatDistance(req.distance)}
+          </span>
+          <span className="text-[11px] text-gray-400 dark:text-gray-500">
+            {formatDistanceToNow(req.createdAt, { addSuffix: true })}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+})
+
 export default function NearbyHelp() {
   const { location, address, loading: locLoading, error: locError, detect, locationStatus, accuracy, locationSource } = useLocationCtx()
-  const [requests, setRequests] = useState([])
+  const [allRequests, setAllRequests] = useState([])
   const [loadingReqs, setLoadingReqs] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -89,6 +136,7 @@ export default function NearbyHelp() {
     setRefreshKey((k) => k + 1)
   }, [detect])
 
+  // Real-time Firestore subscription
   useEffect(() => {
     if (!location) return
     setLoadingReqs(true)
@@ -100,28 +148,41 @@ export default function NearbyHelp() {
           ...d.data(),
           createdAt: d.data().createdAt?.toDate() || new Date(),
         }))
-        const nearby = all
-          .filter((r) => {
-            if (r.status === 'completed') return false
-            if (!r.lat || !r.lng) return false
-            const dist = haversine(location.lat, location.lng, r.lat, r.lng)
-            return dist <= RADIUS_KM
-          })
-          .map((r) => ({
-            ...r,
-            distance: haversine(location.lat, location.lng, r.lat, r.lng),
-          }))
-          .sort((a, b) => a.distance - b.distance)
-        setRequests(nearby)
+        setAllRequests(all)
         setLoadingReqs(false)
       },
-      (err) => {
-        console.error('NearbyHelp error:', err)
+      () => {
         setLoadingReqs(false)
       }
     )
     return unsub
   }, [location, refreshKey])
+
+  // Background refresh: re-trigger every 5 minutes to pick up distance changes
+  useEffect(() => {
+    if (!location) return
+    const id = setInterval(() => {
+      setRefreshKey((k) => k + 1)
+    }, BG_REFRESH_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [location])
+
+  // Memoize nearby filtered+sorted requests from raw snapshot data
+  const requests = useMemo(() => {
+    if (!location || !allRequests.length) return []
+    return allRequests
+      .filter((r) => {
+        if (r.status === 'completed') return false
+        if (!r.lat || !r.lng) return false
+        const dist = haversine(location.lat, location.lng, r.lat, r.lng)
+        return dist <= RADIUS_KM
+      })
+      .map((r) => ({
+        ...r,
+        distance: haversine(location.lat, location.lng, r.lat, r.lng),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+  }, [allRequests, location])
 
   // Show skeleton while location is actively being detected
   if (locLoading && !location) return <NearbyHelpSkeleton />
@@ -235,49 +296,12 @@ export default function NearbyHelp() {
           {requests.slice(0, MAX_DISPLAY).map((req, index) => {
             const catColor = CATEGORY_COLORS[req.category] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
             return (
-              <div
+              <RequestRow
                 key={req.requestId}
-                className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                {req.userAvatar ? (
-                  <img
-                    src={req.userAvatar}
-                    alt={req.userName || 'User'}
-                    className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 mt-0.5 flex items-center justify-center">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      {req.userName?.[0] || '?'}
-                    </span>
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
-                      {req.title || 'Help Request'}
-                    </p>
-                    {index === 0 && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shrink-0">
-                        Nearest
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    <span className={clsx('text-[11px] font-medium px-1.5 py-0.5 rounded-full', catColor)}>
-                      {req.category}
-                    </span>
-                    <span className="flex items-center gap-0.5 text-[11px] text-gray-400 dark:text-gray-500">
-                      <MapPin className="w-2.5 h-2.5" />
-                      {formatDistance(req.distance)}
-                    </span>
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                      {formatDistanceToNow(req.createdAt, { addSuffix: true })}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                req={req}
+                catColor={catColor}
+                isFirst={index === 0}
+              />
             )
           })}
           <Link

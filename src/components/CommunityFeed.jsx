@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   collection,
   query,
@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
 import { Inbox } from 'lucide-react'
+import { logEvent } from '../services/analytics'
 
 const FILTERS = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Community Events', 'Transportation']
 
@@ -68,7 +69,7 @@ export default function CommunityFeed() {
     return unsub
   }, [])
 
-  const handleCreatePost = async ({ content, category, imageURL = null }) => {
+  const handleCreatePost = useCallback(async ({ content, category, imageURL = null }) => {
     if (!displayUser) return
     await addDoc(collection(db, 'posts'), {
       uid: displayUser.uid,
@@ -82,9 +83,10 @@ export default function CommunityFeed() {
       commentCount: 0,
       createdAt: serverTimestamp(),
     })
-  }
+    logEvent('post_created', { category: category || 'General' })
+  }, [displayUser])
 
-  const handleLike = async (postId) => {
+  const handleLike = useCallback(async (postId) => {
     if (!displayUser) return
     const ref = doc(db, 'posts', postId)
     const post = posts.find((p) => p.postId === postId)
@@ -92,13 +94,18 @@ export default function CommunityFeed() {
     await updateDoc(ref, {
       likes: liked ? arrayRemove(displayUser.uid) : arrayUnion(displayUser.uid),
     })
-  }
+    logEvent('post_like', { postId, liked: !liked })
+  }, [displayUser, posts])
 
-  const handleDelete = (postId) => {
+  const handleDelete = useCallback((postId) => {
     setPosts((prev) => prev.filter((p) => p.postId !== postId))
-  }
+  }, [])
 
-  const filtered = filter === 'All' ? posts : posts.filter((p) => p.category === filter)
+  // Memoize filtered posts to avoid re-filtering on every render
+  const filtered = useMemo(
+    () => (filter === 'All' ? posts : posts.filter((p) => p.category === filter)),
+    [posts, filter]
+  )
 
   return (
     <div className="space-y-4">

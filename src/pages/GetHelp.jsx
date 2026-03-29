@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, memo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useLocationCtx } from '../context/LocationContext'
 import { db } from '../firebase'
@@ -25,6 +25,7 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
 import ImageUpload from '../components/ImageUpload'
+import { logEvent } from '../services/analytics'
 
 const CATEGORIES = [
   'Food & Groceries',
@@ -56,7 +57,7 @@ const STATUS_STYLES = {
   },
 }
 
-function HelpRequestCard({ req, currentUser, userLocation }) {
+const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLocation }) {
   const status = STATUS_STYLES[req.status] || STATUS_STYLES.pending
   const StatusIcon = status.icon
   const isOwner = currentUser?.uid === req.uid
@@ -66,9 +67,10 @@ function HelpRequestCard({ req, currentUser, userLocation }) {
       ? haversine(userLocation.lat, userLocation.lng, req.lat, req.lng)
       : null
 
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChange = useCallback(async (newStatus) => {
     await updateDoc(doc(db, 'helpRequests', req.requestId), { status: newStatus })
-  }
+    logEvent('help_request_status_change', { requestId: req.requestId, status: newStatus })
+  }, [req.requestId])
 
   return (
     <div className="card p-5 space-y-3">
@@ -78,6 +80,7 @@ function HelpRequestCard({ req, currentUser, userLocation }) {
             src={req.userAvatar}
             alt={req.userName}
             className="w-9 h-9 rounded-full object-cover"
+            loading="lazy"
           />
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
@@ -150,7 +153,7 @@ function HelpRequestCard({ req, currentUser, userLocation }) {
       )}
     </div>
   )
-}
+})
 
 export default function GetHelp() {
   const { displayUser, currentUser } = useAuth()
@@ -188,7 +191,7 @@ export default function GetHelp() {
     return unsub
   }, [])
 
-  const useMyLocation = () => {
+  const useMyLocation = useCallback(() => {
     if (!location) {
       detect()
       return
@@ -197,10 +200,11 @@ export default function GetHelp() {
       ? `${address.barangay}, ${address.city || 'QC'}`
       : `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
     setForm((f) => ({ ...f, location: locStr }))
-  }
+  }, [location, address, detect])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
+    if (!displayUser) return
     setSubmitting(true)
     await addDoc(collection(db, 'helpRequests'), {
       uid: displayUser.uid,
@@ -219,6 +223,7 @@ export default function GetHelp() {
       status: 'pending',
       createdAt: serverTimestamp(),
     })
+    logEvent('help_request_created', { category: form.category })
     setForm({
       title: '',
       description: '',
@@ -228,19 +233,23 @@ export default function GetHelp() {
     setImageUrl(null)
     setShowForm(false)
     setSubmitting(false)
-  }
+  }, [displayUser, form, imageUrl, location, address])
 
-  let filtered = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
-  if (distanceFilter && location) {
-    filtered = filtered
-      .filter((r) => r.lat && r.lng)
-      .map((r) => ({
-        ...r,
-        distance: haversine(location.lat, location.lng, r.lat, r.lng),
-      }))
-      .filter((r) => r.distance <= 10)
-      .sort((a, b) => a.distance - b.distance)
-  }
+  // Memoize filtered results to avoid recomputing on every render
+  const filtered = React.useMemo(() => {
+    let result = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
+    if (distanceFilter && location) {
+      result = result
+        .filter((r) => r.lat && r.lng)
+        .map((r) => ({
+          ...r,
+          distance: haversine(location.lat, location.lng, r.lat, r.lng),
+        }))
+        .filter((r) => r.distance <= 10)
+        .sort((a, b) => a.distance - b.distance)
+    }
+    return result
+  }, [requests, filter, distanceFilter, location])
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

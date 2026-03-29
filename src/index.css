@@ -50,6 +50,16 @@
 .leaflet-container {
   font-family: inherit;
   outline: none;
+  /*
+   * FIX MAP OVERLAY ISSUE:
+   * Create an isolated stacking context so Leaflet's internal z-indexes
+   * (tile pane 200, marker pane 600, etc.) stay confined within the map
+   * container and never bleed above the sticky navbar or other UI elements.
+   */
+  isolation: isolate;
+  /* Prevent map interactions from escaping the container bounds */
+  overflow: hidden;
+  contain: layout;
 }
 
 /* Attribution */
