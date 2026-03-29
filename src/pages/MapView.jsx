@@ -11,6 +11,7 @@ import {
   Popup,
   Polyline,
   useMap,
+  useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -115,6 +116,13 @@ function MapController({ center, zoom }) {
       })
     }
   }, [center?.lat, center?.lng])
+  return null
+}
+
+function MapClickSetter({ onSetLocation }) {
+  useMapEvents({
+    click: (e) => onSetLocation(e.latlng.lat, e.latlng.lng),
+  })
   return null
 }
 
@@ -510,7 +518,7 @@ function SidebarContent({
             {/* ── Place list ── */}
             {!placesLoading && filteredPlaces.length > 0 && (
               <div className="divide-y divide-gray-50 dark:divide-gray-800/80">
-                {filteredPlaces.map((place) => {
+                {filteredPlaces.map((place, index) => {
                   const config = PLACE_CONFIG[place.type]
                   const isSelected = selectedPlace?.id === place.id
                   return (
@@ -519,7 +527,7 @@ function SidebarContent({
                       ref={isSelected ? selectedItemRef : null}
                       onClick={() => onPlaceClick(place)}
                       className={clsx(
-                        'w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors',
+                        'w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors active:bg-gray-100 dark:active:bg-gray-800',
                         isSelected &&
                           'bg-primary-50/60 dark:bg-primary-900/10 border-l-2 border-primary-500'
                       )}
@@ -535,9 +543,16 @@ function SidebarContent({
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
-                            {place.name}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
+                              {place.name}
+                            </p>
+                            {index === 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shrink-0">
+                                Nearest
+                              </span>
+                            )}
+                          </div>
                           {place.address && (
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 line-clamp-1">
                               {place.address}
@@ -639,6 +654,7 @@ export default function MapView() {
     locationSource,
     accuracy,
     detect,
+    setManual,
   } = useLocationCtx()
   const { theme } = useTheme()
 
@@ -861,6 +877,9 @@ export default function MapView() {
         >
           <TileLayer url={tileUrl} attribution={attribution} subdomains="abcd" maxZoom={19} />
           <MapController center={mapCenter} zoom={mapZoom} />
+          {!location && (
+            <MapClickSetter onSetLocation={setManual} />
+          )}
 
           {/* User location marker */}
           {location && (
@@ -954,6 +973,15 @@ export default function MapView() {
             />
           )}
         </MapContainer>
+
+        {/* Click-to-set hint when no location */}
+        {!location && !locLoading && (
+          <div className="absolute bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg px-4 py-2 text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">
+              Click anywhere on the map to set your location
+            </div>
+          </div>
+        )}
 
         {/* Floating locate button */}
         <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">

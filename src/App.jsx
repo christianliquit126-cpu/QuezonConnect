@@ -5,20 +5,27 @@ import { ThemeProvider } from './context/ThemeContext'
 import { LocationProvider } from './context/LocationContext'
 import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
+import OfflineBanner from './components/OfflineBanner'
 import Home from './pages/Home'
-import Login from './pages/Login'
-import SignUp from './pages/SignUp'
-import GetHelp from './pages/GetHelp'
-import GiveHelp from './pages/GiveHelp'
-import Resources from './pages/Resources'
-import Messages from './pages/Messages'
-import Profile from './pages/Profile'
-import Admin from './pages/Admin'
 import FirebaseSetup from './components/FirebaseSetup'
-import Settings from './pages/Settings'
 import { Loader2 } from 'lucide-react'
 
-const MapView = lazy(() => import('./pages/MapView'))
+const Login     = lazy(() => import('./pages/Login'))
+const SignUp    = lazy(() => import('./pages/SignUp'))
+const GetHelp   = lazy(() => import('./pages/GetHelp'))
+const GiveHelp  = lazy(() => import('./pages/GiveHelp'))
+const Resources = lazy(() => import('./pages/Resources'))
+const Messages  = lazy(() => import('./pages/Messages'))
+const Profile   = lazy(() => import('./pages/Profile'))
+const Settings  = lazy(() => import('./pages/Settings'))
+const Admin     = lazy(() => import('./pages/Admin'))
+const MapView   = lazy(() => import('./pages/MapView'))
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
+    <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+  </div>
+)
 
 const ProtectedRoute = ({ children }) => {
   const { isLoggedIn } = useAuth()
@@ -38,13 +45,8 @@ const AppRoutes = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Navbar />
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
-            <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
-          </div>
-        }
-      >
+      <OfflineBanner />
+      <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />

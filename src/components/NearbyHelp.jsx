@@ -61,6 +61,23 @@ function StatusBadge({ locationStatus, accuracy, locationSource }) {
   return null
 }
 
+function NearbyHelpSkeleton() {
+  return (
+    <div className="card p-5 space-y-3 animate-pulse">
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40" />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+            <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function NearbyHelp() {
   const { location, address, loading: locLoading, error: locError, detect, locationStatus, accuracy, locationSource } = useLocationCtx()
   const [requests, setRequests] = useState([])
@@ -106,6 +123,9 @@ export default function NearbyHelp() {
     return unsub
   }, [location, refreshKey])
 
+  // Show skeleton while location is actively being detected
+  if (locLoading && !location) return <NearbyHelpSkeleton />
+
   if (!location && !locLoading) {
     return (
       <div className="card p-5">
@@ -131,21 +151,18 @@ export default function NearbyHelp() {
           <button
             onClick={detect}
             disabled={locLoading}
-            className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+            className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 active:scale-95 transition-transform"
           >
             {locLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
             {locLoading ? 'Detecting...' : 'Enable Location'}
           </button>
+          <Link
+            to="/map"
+            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          >
+            Set location manually on map →
+          </Link>
         </div>
-      </div>
-    )
-  }
-
-  if (locLoading && !location) {
-    return (
-      <div className="card p-5 flex items-center gap-3">
-        <Loader2 className="w-4 h-4 text-primary-600 animate-spin shrink-0" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">Detecting your location...</p>
       </div>
     )
   }
@@ -168,15 +185,17 @@ export default function NearbyHelp() {
             <StatusBadge locationStatus={locationStatus} accuracy={accuracy} locationSource={locationSource} />
           </div>
         </div>
-        <button
-          onClick={refresh}
-          disabled={locLoading || loadingReqs}
-          title="Refresh nearby"
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-40 ml-2 shrink-0 mt-0.5"
-        >
-          <RefreshCw className={clsx('w-3.5 h-3.5', (locLoading || loadingReqs) && 'animate-spin')} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 ml-2 shrink-0 mt-0.5">
+          <button
+            onClick={refresh}
+            disabled={locLoading || loadingReqs}
+            title="Refresh nearby"
+            className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={clsx('w-3.5 h-3.5', (locLoading || loadingReqs) && 'animate-spin')} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {locationStatus === 'low-accuracy' && (
@@ -201,16 +220,19 @@ export default function NearbyHelp() {
       )}
 
       {!loadingReqs && requests.length === 0 && (
-        <div className="text-center py-6">
+        <div className="text-center py-6 space-y-1">
           <p className="text-sm text-gray-400 dark:text-gray-500">
-            No open help requests within {RADIUS_KM} km of your location.
+            No open help requests within {RADIUS_KM} km.
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Check back soon — new requests appear in real time.
           </p>
         </div>
       )}
 
       {!loadingReqs && requests.length > 0 && (
         <div className="space-y-2">
-          {requests.slice(0, MAX_DISPLAY).map((req) => {
+          {requests.slice(0, MAX_DISPLAY).map((req, index) => {
             const catColor = CATEGORY_COLORS[req.category] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
             return (
               <div
@@ -220,8 +242,9 @@ export default function NearbyHelp() {
                 {req.userAvatar ? (
                   <img
                     src={req.userAvatar}
-                    alt={req.userName}
+                    alt={req.userName || 'User'}
                     className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5"
+                    loading="lazy"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 mt-0.5 flex items-center justify-center">
@@ -231,9 +254,16 @@ export default function NearbyHelp() {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
-                    {req.title}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
+                      {req.title || 'Help Request'}
+                    </p>
+                    {index === 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shrink-0">
+                        Nearest
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                     <span className={clsx('text-[11px] font-medium px-1.5 py-0.5 rounded-full', catColor)}>
                       {req.category}

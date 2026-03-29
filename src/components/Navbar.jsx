@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle,
-  Moon, Sun, Menu, X, Search, Settings, User, Shield
+  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
