@@ -245,6 +245,20 @@ kill 1   # restart to pick up env vars
 - Apple PWA meta tags (apple-mobile-web-app-capable, title, icon)
 - `theme-color` meta for browser chrome color
 
+## Bug Fixes & Improvements (Session 3)
+- **Shared categories constant**: Created `src/constants/categories.js` with `HELP_CATEGORIES`, `POST_CATEGORIES`, and `FEED_FILTERS` — eliminates duplication across `GetHelp.jsx`, `CreatePost.jsx`, and `CommunityFeed.jsx`. All three now import from this shared source.
+- **CommunityFeed filter completeness**: Added 'Shelter & Housing', 'Clothing', and 'Utilities' to the FEED_FILTERS — now consistent with GetHelp and CreatePost category lists.
+- **CreatePost categories**: Added 'Utilities' category to match GetHelp (was missing).
+- **Settings isQC bug fix**: `cityName.includes(' qc')` had a leading space that prevented "QC" from being detected. Changed to `cityName.includes('qc')`.
+- **NotificationBell Firestore limit**: Added `limit(30)` directly to the Firestore query (both primary and fallback) instead of fetching unlimited documents and slicing client-side.
+- **PostCard comment count decrement**: Removed stale `post.commentCount > 0` guard that prevented decrementing when the prop was out of sync. Now always calls `increment(-1)` atomically.
+- **GiveHelp skill update error feedback**: `handleUpdateSkills` now sets a `skillsError` state on failure — displayed inline so users know the update didn't save.
+- **GiveHelp checkingVolunteer reset**: Added early return when `currentUser` is null so `checkingVolunteer` is set to `false` immediately instead of staying true indefinitely.
+- **GiveHelp data loading**: Separated volunteer/requests loading (always runs) from current-user volunteer check (only runs when logged in), so the volunteers list and help requests load correctly for all visitors.
+- **GiveHelp duplicate availability badge**: Removed the redundant "Available"/"Unavailable" text badge from volunteer cards — the status dot with `title` already conveys this information.
+- **Navbar search icon clickable**: Search icon is now a button that triggers the search navigation, matching the Enter-key behavior.
+- **Resources seedIfEmpty guard**: Added a module-level `seedAttempted` flag so the Firestore `getDocs` check for seeding only runs once per session instead of on every component mount.
+
 ## Bug Fixes Applied (Session 2)
 - **Admin panel status mismatch**: OverviewTab now counts `pending`/`open` as open requests and `completed`/`resolved` as resolved. RequestsTab dropdown now uses `pending`/`in_progress`/`completed` to match what GetHelp.jsx actually stores.
 - **PostCard post image**: Added `onError` handler — broken images hide cleanly instead of showing a broken image icon.

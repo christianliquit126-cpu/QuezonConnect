@@ -32,18 +32,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
 import ImageUpload from '../components/ImageUpload'
 import { logEvent } from '../services/analytics'
-
-const CATEGORIES = [
-  'Food & Groceries',
-  'Health & Medical',
-  'School & Supplies',
-  'Transportation',
-  'Shelter & Housing',
-  'Clothing',
-  'Utilities',
-  'Community Events',
-  'Other',
-]
+import { HELP_CATEGORIES as CATEGORIES } from '../constants/categories'
 
 const URGENCY_LEVELS = [
   { value: 'normal', label: 'Normal', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' },

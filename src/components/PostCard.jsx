@@ -201,12 +201,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     if (!currentUser) return
     try {
       await deleteDoc(doc(db, 'posts', post.postId, 'comments', commentId))
-      const currentCount = post.commentCount || 0
-      if (currentCount > 0) {
-        await updateDoc(doc(db, 'posts', post.postId), {
-          commentCount: increment(-1),
-        })
-      }
+      await updateDoc(doc(db, 'posts', post.postId), {
+        commentCount: increment(-1),
+      })
     } catch (err) {
       console.error('Failed to delete comment:', err)
     }

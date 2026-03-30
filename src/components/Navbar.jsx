@@ -87,10 +87,15 @@ export default function Navbar() {
 
   const handleSearch = (e) => {
     if (e.key === 'Enter' && search.trim()) {
-      saveSearch(search.trim())
-      navigate(`/resources?q=${encodeURIComponent(search.trim())}`)
-      setSearch('')
+      submitSearch()
     }
+  }
+
+  const submitSearch = () => {
+    if (!search.trim()) return
+    saveSearch(search.trim())
+    navigate(`/resources?q=${encodeURIComponent(search.trim())}`)
+    setSearch('')
   }
 
   return (
@@ -126,7 +131,15 @@ export default function Navbar() {
           <div className="flex items-center gap-2">
             {/* Search */}
             <div className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5">
-              <Search className="w-4 h-4 text-gray-400 shrink-0" />
+              <button
+                type="button"
+                onClick={submitSearch}
+                className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors shrink-0"
+                aria-label="Search"
+                tabIndex={-1}
+              >
+                <Search className="w-4 h-4" />
+              </button>
               <input
                 type="text"
                 placeholder="Search..."

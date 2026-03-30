@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   updateDoc,
   doc,
@@ -37,26 +38,26 @@ export default function NotificationBell() {
     const q = query(
       collection(db, 'notifications'),
       where('recipientUid', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(30)
     )
     const unsub = onSnapshot(
       q,
       (snap) => {
         setNotifications(
-          snap.docs
-            .map((d) => ({
-              id: d.id,
-              ...d.data(),
-              createdAt: d.data().createdAt?.toDate() || new Date(),
-            }))
-            .slice(0, 30)
+          snap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+            createdAt: d.data().createdAt?.toDate() || new Date(),
+          }))
         )
       },
       () => {
         // Composite index may not exist yet — fall back to unordered query
         const fallback = query(
           collection(db, 'notifications'),
-          where('recipientUid', '==', currentUser.uid)
+          where('recipientUid', '==', currentUser.uid),
+          limit(30)
         )
         unsubFallback = onSnapshot(fallback, (snap) => {
           setNotifications(
@@ -67,7 +68,6 @@ export default function NotificationBell() {
                 createdAt: d.data().createdAt?.toDate() || new Date(),
               }))
               .sort((a, b) => b.createdAt - a.createdAt)
-              .slice(0, 30)
           )
         })
       }

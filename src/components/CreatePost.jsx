@@ -1,17 +1,7 @@
 import React, { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import ImageUpload from './ImageUpload'
-
-const CATEGORIES = [
-  'Food & Groceries',
-  'Health & Medical',
-  'School & Supplies',
-  'Transportation',
-  'Shelter & Housing',
-  'Clothing',
-  'Community Events',
-  'Other',
-]
+import { POST_CATEGORIES as CATEGORIES } from '../constants/categories'
 
 const MAX_CHARS = 500
 

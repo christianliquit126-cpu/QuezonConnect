@@ -165,6 +165,8 @@ function DetailModal({ resource, onClose }) {
   )
 }
 
+let seedAttempted = false
+
 export default function Resources() {
   const loc = useLocation()
   const params = new URLSearchParams(loc.search)
@@ -184,6 +186,8 @@ export default function Resources() {
 
   useEffect(() => {
     const seedIfEmpty = async () => {
+      if (seedAttempted) return
+      seedAttempted = true
       const snap = await getDocs(collection(db, 'resources'))
       if (snap.empty) {
         await Promise.all(

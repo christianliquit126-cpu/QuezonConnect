@@ -121,7 +121,7 @@ export default function Settings() {
         lng: form.lng || null,
         isQC: (() => {
           const cityName = form.city?.toLowerCase() || ''
-          if (cityName.includes('quezon') || cityName.includes(' qc')) return true
+          if (cityName.includes('quezon') || cityName.includes('qc')) return true
           if (form.lat && form.lng) {
             return form.lat >= 14.55 && form.lat <= 14.76 && form.lng >= 120.98 && form.lng <= 121.13
           }

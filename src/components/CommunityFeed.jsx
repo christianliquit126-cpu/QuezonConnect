@@ -18,8 +18,7 @@ import PostCard from './PostCard'
 import CreatePost from './CreatePost'
 import { Inbox } from 'lucide-react'
 import { logEvent } from '../services/analytics'
-
-const FILTERS = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Community Events', 'Transportation']
+import { FEED_FILTERS as FILTERS } from '../constants/categories'
 
 function PostSkeleton() {
   return (
