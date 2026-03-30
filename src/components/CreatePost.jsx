@@ -33,14 +33,17 @@ export default function CreatePost({ currentUser, onSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!content.trim() || content.length > MAX_CHARS) return
+    if (!content.trim() || content.length > MAX_CHARS || loading) return
     setLoading(true)
-    await onSubmit?.({ content, category, imageURL: imageUrl || null })
-    setContent('')
-    setCategory('Other')
-    setImageUrl(null)
-    setExpanded(false)
-    setLoading(false)
+    try {
+      await onSubmit?.({ content, category, imageURL: imageUrl || null })
+      setContent('')
+      setCategory('Other')
+      setImageUrl(null)
+      setExpanded(false)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCancel = () => {

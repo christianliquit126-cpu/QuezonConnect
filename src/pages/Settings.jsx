@@ -92,32 +92,44 @@ export default function Settings() {
 
   const [nameError, setNameError] = useState('')
 
+  const NAME_MAX = 60
+
   const handleSave = async () => {
     if (!currentUser) return
-    if (!form.name.trim()) {
+    const trimmedName = form.name.trim()
+    if (!trimmedName) {
       setNameError('Display name cannot be empty.')
+      return
+    }
+    if (trimmedName.length > NAME_MAX) {
+      setNameError(`Display name must be ${NAME_MAX} characters or fewer.`)
       return
     }
     setNameError('')
     setSaving(true)
     setSaved(false)
-    const locationStr = form.barangay
-      ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
-      : form.location
-    await updateDoc(doc(db, 'users', currentUser.uid), {
-      name: form.name.trim(),
-      location: locationStr,
-      barangay: form.barangay || '',
-      city: form.city || '',
-      lat: form.lat || null,
-      lng: form.lng || null,
-      isQC: form.city?.toLowerCase().includes('quezon') || false,
-      bio: form.bio.trim(),
-    })
-    await refreshProfile()
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    try {
+      const locationStr = form.barangay
+        ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
+        : form.location
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        name: trimmedName,
+        location: locationStr,
+        barangay: form.barangay || '',
+        city: form.city || '',
+        lat: form.lat || null,
+        lng: form.lng || null,
+        isQC: form.city?.toLowerCase().includes('quezon') || false,
+        bio: form.bio.trim(),
+      })
+      await refreshProfile()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {
+      setNameError('Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const locationDisplay = form.barangay
@@ -147,9 +159,10 @@ export default function Settings() {
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <img
-                src={displayUser?.avatar}
+                src={displayUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=200`}
                 alt={displayUser?.name}
                 className="w-20 h-20 rounded-2xl object-cover border-2 border-primary-100 dark:border-primary-900"
+                onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=200` }}
               />
               <button
                 type="button"

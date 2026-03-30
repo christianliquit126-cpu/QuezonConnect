@@ -83,9 +83,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user)
-      if (user) await fetchUserProfile(user.uid)
-      else setUserProfile(null)
-      setLoading(false)
+      try {
+        if (user) await fetchUserProfile(user.uid)
+        else setUserProfile(null)
+      } catch {
+        setUserProfile(null)
+      } finally {
+        setLoading(false)
+      }
     })
     return unsub
   }, [])

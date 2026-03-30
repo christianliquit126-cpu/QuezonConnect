@@ -10,6 +10,7 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  limit,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
@@ -50,7 +51,7 @@ export default function CommunityFeed() {
   const [filter, setFilter] = useState('All')
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'))
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(75))
     const unsub = onSnapshot(
       q,
       (snap) => {

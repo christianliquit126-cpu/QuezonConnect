@@ -48,11 +48,18 @@ const REPORT_REASONS = [
 function PostMenu({ onEdit, onDelete, onClose }) {
   const ref = useRef(null)
   useEffect(() => {
-    const handler = (e) => {
+    const handleMouse = (e) => {
       if (ref.current && !ref.current.contains(e.target)) onClose()
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleMouse)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleMouse)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [onClose])
 
   return (
@@ -153,52 +160,74 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     if (!commentText.trim() || !currentUser) return
     if (commentText.length > COMMENT_MAX) return
     setSubmitting(true)
-    await addDoc(collection(db, 'posts', post.postId, 'comments'), {
-      uid: currentUser.uid,
-      userName: currentUser.name,
-      userAvatar: currentUser.avatar,
-      content: commentText.trim(),
-      createdAt: serverTimestamp(),
-    })
-    await updateDoc(doc(db, 'posts', post.postId), {
-      commentCount: increment(1),
-    })
-    if (post.uid && post.uid !== currentUser.uid) {
-      createNotification({
-        recipientUid: post.uid,
-        type: 'comment',
-        message: `${currentUser.name} commented on your post.`,
-        link: '/',
-        senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
+    try {
+      await addDoc(collection(db, 'posts', post.postId, 'comments'), {
+        uid: currentUser.uid,
+        userName: currentUser.name,
+        userAvatar: currentUser.avatar,
+        content: commentText.trim(),
+        createdAt: serverTimestamp(),
       })
+      await updateDoc(doc(db, 'posts', post.postId), {
+        commentCount: increment(1),
+      })
+      if (post.uid && post.uid !== currentUser.uid) {
+        createNotification({
+          recipientUid: post.uid,
+          type: 'comment',
+          message: `${currentUser.name} commented on your post.`,
+          link: '/',
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+        })
+      }
+      setCommentText('')
+    } catch {
+      // comment failed — keep text so user can retry
+    } finally {
+      setSubmitting(false)
     }
-    setCommentText('')
-    setSubmitting(false)
   }
 
   const handleDeleteComment = async (commentId) => {
     if (!currentUser) return
     try {
       await deleteDoc(doc(db, 'posts', post.postId, 'comments', commentId))
-      await updateDoc(doc(db, 'posts', post.postId), {
-        commentCount: increment(-1),
-      })
+      const currentCount = post.commentCount || 0
+      if (currentCount > 0) {
+        await updateDoc(doc(db, 'posts', post.postId), {
+          commentCount: increment(-1),
+        })
+      }
     } catch {}
   }
 
+  const EDIT_MAX = 500
+
   const handleSaveEdit = async () => {
-    if (!editContent.trim() || editContent.trim() === post.content) {
+    const trimmed = editContent.trim()
+    if (!trimmed || trimmed === post.content || trimmed.length > EDIT_MAX) {
       setEditing(false)
+      setEditContent(post.content)
       return
     }
     setSaving(true)
-    await updateDoc(doc(db, 'posts', post.postId), {
-      content: editContent.trim(),
-      editedAt: serverTimestamp(),
-    })
-    setSaving(false)
+    try {
+      await updateDoc(doc(db, 'posts', post.postId), {
+        content: trimmed,
+        editedAt: serverTimestamp(),
+      })
+      setEditing(false)
+    } catch {
+      // keep editing open so user can retry
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
     setEditing(false)
+    setEditContent(post.content)
   }
 
   const handleDelete = async () => {
@@ -318,17 +347,30 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       <div className="px-5 pb-4">
         {editing ? (
           <div className="space-y-2">
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-              autoFocus
-            />
+            <div className="relative">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') handleCancelEdit() }}
+                rows={4}
+                maxLength={EDIT_MAX}
+                className={`w-full px-3 py-2 text-sm border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 resize-none ${
+                  editContent.length >= EDIT_MAX
+                    ? 'border-red-400 focus:ring-red-400'
+                    : 'border-gray-200 dark:border-gray-700 focus:ring-primary-500'
+                }`}
+                autoFocus
+              />
+              {editContent.length >= EDIT_MAX * 0.8 && (
+                <span className={`absolute bottom-2 right-2 text-xs font-medium ${editContent.length >= EDIT_MAX ? 'text-red-500' : 'text-amber-500'}`}>
+                  {EDIT_MAX - editContent.length}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSaveEdit}
-                disabled={saving || !editContent.trim()}
+                disabled={saving || !editContent.trim() || editContent.length > EDIT_MAX}
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 transition-colors"
               >
                 {saving ? (
@@ -339,10 +381,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 Save
               </button>
               <button
-                onClick={() => {
-                  setEditing(false)
-                  setEditContent(post.content)
-                }}
+                onClick={handleCancelEdit}
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />

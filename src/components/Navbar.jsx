@@ -178,9 +178,10 @@ export default function Navbar() {
                     className="flex items-center p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
                     <img
-                      src={displayUser?.avatar}
+                      src={displayUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100`}
                       alt={displayUser?.name}
                       className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
+                      onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100` }}
                     />
                   </button>
 

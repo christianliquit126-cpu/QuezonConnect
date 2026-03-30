@@ -13,6 +13,7 @@ import {
   updateDoc,
   where,
   getDocs,
+  limit,
 } from 'firebase/firestore'
 import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -58,7 +59,7 @@ export default function GiveHelp() {
       }
     })
 
-    const unsub2 = onSnapshot(collection(db, 'helpRequests'), (snap) => {
+    const unsub2 = onSnapshot(query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(60)), (snap) => {
       setOpenRequests(
         snap.docs
           .map((d) => ({
@@ -85,16 +86,21 @@ export default function GiveHelp() {
   const handleRegister = async () => {
     if (!skills.length || !displayUser) return
     setSaving(true)
-    await setDoc(doc(db, 'volunteers', currentUser.uid), {
-      uid: displayUser.uid,
-      name: displayUser.name,
-      avatar: displayUser.avatar,
-      skills,
-      helpCount: 0,
-      online: true,
-      createdAt: serverTimestamp(),
-    })
-    setSaving(false)
+    try {
+      await setDoc(doc(db, 'volunteers', currentUser.uid), {
+        uid: displayUser.uid,
+        name: displayUser.name,
+        avatar: displayUser.avatar,
+        skills,
+        helpCount: 0,
+        online: true,
+        createdAt: serverTimestamp(),
+      })
+    } catch {
+      // registration failed silently
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleToggleOnline = async () => {
@@ -112,9 +118,14 @@ export default function GiveHelp() {
   const handleUpdateSkills = async () => {
     if (!updatedSkills.length || !myVolunteerDoc) return
     setSavingSkills(true)
-    await updateDoc(doc(db, 'volunteers', myVolunteerDoc.id), { skills: updatedSkills })
-    setSavingSkills(false)
-    setEditingSkills(false)
+    try {
+      await updateDoc(doc(db, 'volunteers', myVolunteerDoc.id), { skills: updatedSkills })
+      setEditingSkills(false)
+    } catch {
+      // keep editing open so user can retry
+    } finally {
+      setSavingSkills(false)
+    }
   }
 
   const toggleUpdatedSkill = (s) =>

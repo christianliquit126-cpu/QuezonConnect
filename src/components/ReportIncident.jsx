@@ -27,6 +27,7 @@ export default function ReportIncident() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!displayUser) return
     if (!form.title.trim() || !form.description.trim()) return
     setSaving(true)
     try {
@@ -94,6 +95,18 @@ export default function ReportIncident() {
                 <div className="flex flex-col items-center justify-center py-10 gap-3">
                   <CheckCircle className="w-10 h-10 text-green-500" />
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Report submitted. Thank you!</p>
+                </div>
+              ) : !displayUser ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 px-5">
+                  <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+                    You must be signed in to submit an incident report.
+                  </p>
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                  >
+                    Close
+                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="p-5 space-y-3">

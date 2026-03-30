@@ -33,6 +33,7 @@ export default function NotificationBell() {
 
   useEffect(() => {
     if (!currentUser) return
+    let unsubFallback = null
     const q = query(
       collection(db, 'notifications'),
       where('recipientUid', '==', currentUser.uid),
@@ -57,7 +58,7 @@ export default function NotificationBell() {
           collection(db, 'notifications'),
           where('recipientUid', '==', currentUser.uid)
         )
-        onSnapshot(fallback, (snap) => {
+        unsubFallback = onSnapshot(fallback, (snap) => {
           setNotifications(
             snap.docs
               .map((d) => ({
@@ -71,7 +72,10 @@ export default function NotificationBell() {
         })
       }
     )
-    return unsub
+    return () => {
+      unsub()
+      if (unsubFallback) unsubFallback()
+    }
   }, [currentUser])
 
   useEffect(() => {

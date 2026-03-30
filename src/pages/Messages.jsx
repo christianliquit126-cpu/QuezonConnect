@@ -142,10 +142,17 @@ export default function Messages() {
     return unsub
   }, [activeChat?.chatId])
 
+  const prevMsgCountRef = useRef(0)
   useEffect(() => {
-    if (messages.length > 0) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length === 0) {
+      prevMsgCountRef.current = 0
+      return
     }
+    const prev = prevMsgCountRef.current
+    prevMsgCountRef.current = messages.length
+    // Use instant scroll on initial load (many messages at once), smooth for single new messages
+    const behavior = prev === 0 || messages.length - prev > 1 ? 'instant' : 'smooth'
+    bottomRef.current?.scrollIntoView({ behavior })
   }, [messages])
 
   useEffect(() => {
@@ -178,7 +185,7 @@ export default function Messages() {
       const otherUser = { uid: startChatUid, name: startChatName || 'User', avatar: startChatAvatar || '' }
       startChat(otherUser)
     }
-  }, [currentUser])
+  }, [currentUser, routerLocation.search, startChat])
 
   const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_')
 

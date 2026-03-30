@@ -13,6 +13,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  limit,
 } from 'firebase/firestore'
 import {
   PlusCircle,
@@ -233,7 +234,7 @@ export default function GetHelp() {
   const DESC_MAX = 500
 
   useEffect(() => {
-    const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'))
+    const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(100))
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -265,36 +266,42 @@ export default function GetHelp() {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!displayUser) return
+    if (!form.title.trim() || !form.description.trim()) return
     setSubmitting(true)
-    await addDoc(collection(db, 'helpRequests'), {
-      uid: displayUser.uid,
-      userName: displayUser.name,
-      userAvatar: displayUser.avatar,
-      userLocation: displayUser.location || '',
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      urgency: form.urgency || 'normal',
-      location: form.location,
-      imageURL: imageUrl || null,
-      lat: location?.lat || displayUser?.lat || null,
-      lng: location?.lng || displayUser?.lng || null,
-      barangay: address?.barangay || displayUser?.barangay || '',
-      city: address?.city || displayUser?.city || '',
-      status: 'pending',
-      createdAt: serverTimestamp(),
-    })
-    logEvent('help_request_created', { category: form.category, urgency: form.urgency })
-    setForm({
-      title: '',
-      description: '',
-      category: 'Other',
-      urgency: 'normal',
-      location: displayUser?.location || '',
-    })
-    setImageUrl(null)
-    setShowForm(false)
-    setSubmitting(false)
+    try {
+      await addDoc(collection(db, 'helpRequests'), {
+        uid: displayUser.uid,
+        userName: displayUser.name,
+        userAvatar: displayUser.avatar,
+        userLocation: displayUser.location || '',
+        title: form.title.trim(),
+        description: form.description.trim(),
+        category: form.category,
+        urgency: form.urgency || 'normal',
+        location: form.location,
+        imageURL: imageUrl || null,
+        lat: location?.lat || displayUser?.lat || null,
+        lng: location?.lng || displayUser?.lng || null,
+        barangay: address?.barangay || displayUser?.barangay || '',
+        city: address?.city || displayUser?.city || '',
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      })
+      logEvent('help_request_created', { category: form.category, urgency: form.urgency })
+      setForm({
+        title: '',
+        description: '',
+        category: 'Other',
+        urgency: 'normal',
+        location: displayUser?.location || '',
+      })
+      setImageUrl(null)
+      setShowForm(false)
+    } catch {
+      // keep form open so user can retry
+    } finally {
+      setSubmitting(false)
+    }
   }, [displayUser, form, imageUrl, location, address])
 
   const handleOfferHelp = useCallback((req) => {
