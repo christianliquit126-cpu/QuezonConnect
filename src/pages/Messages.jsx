@@ -35,9 +35,10 @@ function ChatBubble({ msg, isOwn, showAvatar, avatar, name }) {
         <div className="w-6 shrink-0">
           {showAvatar && (
             <img
-              src={avatar}
+              src={avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name||'U')}&background=2563eb&color=fff`}
               alt={name}
               className="w-6 h-6 rounded-full object-cover"
+              onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name||'U')}&background=2563eb&color=fff` }}
             />
           )}
         </div>
@@ -425,9 +426,10 @@ export default function Messages() {
                     }`}
                   >
                     <img
-                      src={other.avatar}
+                      src={other.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other.name||'U')}&background=2563eb&color=fff`}
                       alt={other.name}
                       className="w-10 h-10 rounded-full object-cover shrink-0"
+                      onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(other.name||'U')}&background=2563eb&color=fff` }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">

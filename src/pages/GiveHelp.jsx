@@ -302,7 +302,7 @@ export default function GiveHelp() {
               >
                 <div className="flex items-start gap-3 min-w-0">
                   <img
-                    src={req.userAvatar}
+                    src={req.userAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.userName || 'U')}&background=2563eb&color=fff`}
                     alt={req.userName}
                     className="w-9 h-9 rounded-full shrink-0 mt-0.5 object-cover"
                     loading="lazy"
@@ -396,7 +396,7 @@ export default function GiveHelp() {
                   )}
                 </p>
                 <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
-                  {v.helpCount} helped
+                  {v.helpCount || 0} {v.helpCount === 1 ? 'person helped' : 'people helped'}
                 </p>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   v.online

@@ -245,6 +245,27 @@ kill 1   # restart to pick up env vars
 - Apple PWA meta tags (apple-mobile-web-app-capable, title, icon)
 - `theme-color` meta for browser chrome color
 
+## Bug Fixes Applied (Session 2)
+- **Admin panel status mismatch**: OverviewTab now counts `pending`/`open` as open requests and `completed`/`resolved` as resolved. RequestsTab dropdown now uses `pending`/`in_progress`/`completed` to match what GetHelp.jsx actually stores.
+- **PostCard post image**: Added `onError` handler — broken images hide cleanly instead of showing a broken image icon.
+- **PostCard editContent sync**: Added `useEffect` to sync `editContent` state when `post.content` changes from Firestore (e.g., edit from another device).
+- **PostCard error visibility**: Save failures and delete failures now show inline error messages to the user.
+- **PostCard report panel Escape key**: Pressing Escape now closes the report reason panel.
+- **Navbar mobile menu**: Added Profile link, Admin Panel link (for admins), and Sign Out button to mobile navigation.
+- **Navbar search clear button**: Added X button to clear the search input.
+- **Navbar mobile button**: Added `aria-expanded` and `aria-label` to the hamburger button.
+- **Login/SignUp social auth**: Google and Facebook buttons now show a spinner and are disabled during auth — prevents double-click.
+- **Settings isQC detection**: Now also checks for "QC" abbreviation in addition to "quezon" (city field).
+- **Settings bio counter**: Counter text turns amber at 160/200 chars and red at 190/200 chars as a warning.
+- **Resources search sync**: Added `useEffect` to sync the search state when the URL `?q=` param changes via navigation (e.g., clicking a popular tag from Home).
+- **GiveHelp helpCount pluralization**: Now shows "1 person helped" vs "2 people helped" correctly.
+- **GiveHelp avatar fallback**: Request list avatar `src` now has a fallback value in addition to `onError`.
+- **Messages chat list avatar**: Added fallback src and `onError` handler to chat list avatars.
+- **Messages chat bubble avatar**: Added fallback src and `onError` handler to in-conversation bubble avatars.
+- **NotificationBell Escape key**: Pressing Escape now closes the notification dropdown.
+- **EmergencyQuickMode Escape key**: Pressing Escape now closes the emergency services modal.
+- **CreatePost error handling**: Post submission failures now show an inline error message instead of silently failing.
+
 ## Dev Server
 - Host: 0.0.0.0, Port: 5000
 - Command: `pnpm run dev`

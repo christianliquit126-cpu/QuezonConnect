@@ -119,7 +119,7 @@ export default function Settings() {
         city: form.city || '',
         lat: form.lat || null,
         lng: form.lng || null,
-        isQC: form.city?.toLowerCase().includes('quezon') || false,
+        isQC: form.city?.toLowerCase().includes('quezon') || form.city?.toUpperCase().includes('QC') || false,
         bio: form.bio.trim(),
       })
       await refreshProfile()
@@ -270,7 +270,9 @@ export default function Settings() {
             rows={3}
             placeholder="Tell the community a little about yourself…"
           />
-          <p className="text-xs text-gray-400 mt-1 text-right">{form.bio.length}/200</p>
+          <p className={`text-xs mt-1 text-right ${form.bio.length >= 190 ? 'text-red-500' : form.bio.length >= 160 ? 'text-amber-500' : 'text-gray-400'}`}>
+            {form.bio.length}/200
+          </p>
         </div>
 
         {/* Barangay / Location */}
@@ -308,7 +310,7 @@ export default function Settings() {
             <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-400">
               <MapPin className="w-3 h-3" />
               <span>{locationDisplay}</span>
-              {form.city?.toLowerCase().includes('quezon') ? (
+              {form.city?.toLowerCase().includes('quezon') || form.city?.toUpperCase().includes('QC') ? (
                 <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">
                   QC
                 </span>

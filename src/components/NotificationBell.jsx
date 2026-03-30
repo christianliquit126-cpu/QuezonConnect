@@ -84,8 +84,15 @@ export default function NotificationBell() {
         setOpen(false)
       }
     }
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   const unreadCount = notifications.filter((n) => !n.read).length

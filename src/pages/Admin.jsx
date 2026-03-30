@@ -69,8 +69,8 @@ function StatCard({ label, value, sub, color }) {
 }
 
 function OverviewTab({ users, requests, posts, updates, reports }) {
-  const openRequests = requests.filter((r) => r.status === 'open').length
-  const resolvedRequests = requests.filter((r) => r.status === 'resolved').length
+  const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'open' || !r.status).length
+  const resolvedRequests = requests.filter((r) => r.status === 'completed' || r.status === 'resolved').length
   const admins = users.filter((u) => u.role === 'admin').length
   const openReports = reports.filter((r) => r.status === 'open').length
 
@@ -175,14 +175,13 @@ function RequestsTab({ requests }) {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <select
-                  value={r.status || 'open'}
+                  value={r.status || 'pending'}
                   onChange={(e) => handleStatus(r.id, e.target.value)}
                   className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 >
-                  <option value="open">Open</option>
+                  <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
+                  <option value="completed">Completed</option>
                 </select>
                 <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                   <Trash2 className="w-4 h-4" />

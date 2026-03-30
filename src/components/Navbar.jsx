@@ -126,7 +126,7 @@ export default function Navbar() {
           <div className="flex items-center gap-2">
             {/* Search */}
             <div className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5">
-              <Search className="w-4 h-4 text-gray-400" />
+              <Search className="w-4 h-4 text-gray-400 shrink-0" />
               <input
                 type="text"
                 placeholder="Search..."
@@ -135,6 +135,15 @@ export default function Navbar() {
                 onKeyDown={handleSearch}
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-28"
               />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Theme toggle */}
@@ -241,6 +250,8 @@ export default function Navbar() {
             <button
               className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -281,11 +292,33 @@ export default function Navbar() {
                 )}
               </Link>
               <Link
+                to="/profile"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <User className="w-4 h-4" /> Profile
+              </Link>
+              <Link
                 to="/settings"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 <Settings className="w-4 h-4" /> Settings
               </Link>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  <Shield className="w-4 h-4" /> Admin Panel
+                </Link>
+              )}
+              <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </div>
             </>
           )}
         </div>

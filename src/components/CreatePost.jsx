@@ -20,6 +20,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
   const [category, setCategory] = useState('Other')
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [imageUrl, setImageUrl] = useState(null)
 
   const handleKeyDown = (e) => {
@@ -35,12 +36,15 @@ export default function CreatePost({ currentUser, onSubmit }) {
     e.preventDefault()
     if (!content.trim() || content.length > MAX_CHARS || loading) return
     setLoading(true)
+    setError('')
     try {
       await onSubmit?.({ content, category, imageURL: imageUrl || null })
       setContent('')
       setCategory('Other')
       setImageUrl(null)
       setExpanded(false)
+    } catch {
+      setError('Failed to post. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -50,6 +54,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
     setExpanded(false)
     setContent('')
     setImageUrl(null)
+    setError('')
   }
 
   const remaining = MAX_CHARS - content.length
@@ -122,7 +127,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
                     />
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={handleCancel}
@@ -138,6 +143,9 @@ export default function CreatePost({ currentUser, onSubmit }) {
                     {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {loading ? 'Posting...' : 'Post'}
                   </button>
+                  {error && (
+                    <span className="text-xs text-red-500">{error}</span>
+                  )}
                 </div>
               </div>
             </form>

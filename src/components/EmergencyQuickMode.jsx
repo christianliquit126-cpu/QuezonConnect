@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { AlertTriangle, X, Phone, ExternalLink, Loader2, MapPin } from 'lucide-react'
 import { useLocationCtx } from '../context/LocationContext'
 import { QC_PLACES, haversine, formatDistance } from '../data/qcPlaces'
@@ -35,6 +35,13 @@ export default function EmergencyQuickMode() {
       })
       .slice(0, 6)
   }, [location])
+
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [open])
 
   const handleOpen = () => {
     setOpen(true)

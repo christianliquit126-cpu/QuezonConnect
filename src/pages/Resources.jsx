@@ -177,6 +177,12 @@ export default function Resources() {
   const [selected, setSelected] = useState(null)
 
   useEffect(() => {
+    const params = new URLSearchParams(loc.search)
+    const q = params.get('q') || ''
+    setSearch(q)
+  }, [loc.search])
+
+  useEffect(() => {
     const seedIfEmpty = async () => {
       const snap = await getDocs(collection(db, 'resources'))
       if (snap.empty) {

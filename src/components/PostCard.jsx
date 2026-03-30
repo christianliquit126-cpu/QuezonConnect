@@ -103,6 +103,8 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [reportReason, setReportReason] = useState('')
   const [reportSubmitting, setReportSubmitting] = useState(false)
   const commentInputRef = useRef(null)
+  const [saveError, setSaveError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
 
   const isOwner = currentUser?.uid === post.uid
   const canControl = isOwner || isAdmin
@@ -110,6 +112,12 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const liked = currentUser ? post.likes?.includes(currentUser.uid) : false
   const likeCount = post.likes?.length || 0
   const isLong = post.content?.length > READ_MORE_LIMIT
+
+  useEffect(() => {
+    if (!editing) {
+      setEditContent(post.content)
+    }
+  }, [post.content, editing])
 
   useEffect(() => {
     if (!showComments) return
@@ -212,6 +220,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       return
     }
     setSaving(true)
+    setSaveError('')
     try {
       await updateDoc(doc(db, 'posts', post.postId), {
         content: trimmed,
@@ -219,7 +228,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       })
       setEditing(false)
     } catch {
-      // keep editing open so user can retry
+      setSaveError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -227,17 +236,20 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
 
   const handleCancelEdit = () => {
     setEditing(false)
+    setSaveError('')
     setEditContent(post.content)
   }
 
   const handleDelete = async () => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return
     setDeleting(true)
+    setDeleteError('')
     try {
       await deleteDoc(doc(db, 'posts', post.postId))
       onDelete?.(post.postId)
     } catch {
       setDeleting(false)
+      setDeleteError('Failed to delete post. Please try again.')
     }
   }
 
@@ -281,12 +293,29 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     ? post.content.slice(0, READ_MORE_LIMIT) + '…'
     : post.content
 
+  useEffect(() => {
+    if (!showReportPanel) return
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        setShowReportPanel(false)
+        setReportReason('')
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [showReportPanel])
+
   return (
     <div
       className={`card overflow-hidden transition-opacity ${
         deleting ? 'opacity-50 pointer-events-none' : ''
       }`}
     >
+      {deleteError && (
+        <div className="px-5 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/30">
+          <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
@@ -367,7 +396,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleSaveEdit}
                 disabled={saving || !editContent.trim() || editContent.length > EDIT_MAX}
@@ -387,6 +416,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 <X className="w-3.5 h-3.5" />
                 Cancel
               </button>
+              {saveError && (
+                <span className="text-xs text-red-500">{saveError}</span>
+              )}
             </div>
           </div>
         ) : (
@@ -416,6 +448,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           alt={`Post image by ${post.userName || 'community member'}`}
           className="w-full object-cover max-h-80"
           loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
       )}
 
