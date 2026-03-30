@@ -7,6 +7,7 @@ import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import OfflineBanner from './components/OfflineBanner'
 import BackToTop from './components/BackToTop'
+import AIAssistant from './components/AIAssistant'
 import Home from './pages/Home'
 import FirebaseSetup from './components/FirebaseSetup'
 import { Loader2 } from 'lucide-react'
@@ -57,6 +58,7 @@ const AppRoutes = () => {
       <Navbar />
       <OfflineBanner />
       <BackToTop />
+      <AIAssistant />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Home />} />
