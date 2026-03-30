@@ -31,6 +31,14 @@
   }
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .chat-scroll::-webkit-scrollbar {
   width: 4px;
 }

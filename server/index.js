@@ -6,11 +6,12 @@ const app = express()
 const PORT = process.env.AI_SERVER_PORT || 3001
 
 app.use(cors({ origin: '*' }))
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '2mb' }))
 
 const EMERGENCY_KEYWORDS = [
   'help', 'emergency', 'accident', 'fire', 'danger',
   'urgent', 'hurt', 'injured', 'dying', 'attack', 'robbery',
+  'saklolo', 'tulong', 'sunog', 'aksidente', 'agarang tulong',
 ]
 
 function haversineMeters(lat1, lng1, lat2, lng2) {
@@ -30,23 +31,37 @@ function formatDistance(meters) {
   return `${(meters / 1000).toFixed(1)}km away`
 }
 
-function buildSystemPrompt(userLocation, nearbyPlaces) {
+function detectAction(message) {
+  const lower = message.toLowerCase()
+  const isSearching = /\b(nearest|near|find|where|saan|malapit|closest|show|hanapin|pakita)\b/.test(lower)
+  const isHospital = /\b(hospital|ospital|clinic|klinika|medical|doctor|doktor|nurse|emergency room|er)\b/.test(lower)
+  const isPolice = /\b(police|pulis|cop|station|nbi|precinct)\b/.test(lower)
+  const isFire = /\b(fire station|bumbero|fire truck|firestation)\b/.test(lower)
+  const isHelpFeed = /\b(help posts?|tulong|requests?|feed|posts?\s*list|latest posts?|mga.*tulong|help.*requests?)\b/.test(lower)
+                  && /\b(show|see|view|list|latest|recent|lahat|ipakita)\b/.test(lower)
+
+  if (isHospital && isSearching) return { type: 'open_map', filter: 'hospital', label: 'View on Map' }
+  if (isPolice && isSearching) return { type: 'open_map', filter: 'police', label: 'View on Map' }
+  if (isFire && isSearching) return { type: 'open_map', filter: 'community', label: 'View on Map' }
+  if (isHelpFeed) return { type: 'open_help_feed', label: 'View Help Requests' }
+  return null
+}
+
+function buildSystemPrompt(userLocation, nearbyPlaces, appData) {
   let locationInfo = 'User location is not available.'
   if (userLocation?.lat && userLocation?.lng) {
-    locationInfo = `User coordinates: lat ${userLocation.lat.toFixed(5)}, lng ${userLocation.lng.toFixed(5)}.`
-    if (userLocation.address) {
-      const { barangay, city } = userLocation.address
-      if (barangay || city) {
-        locationInfo += ` Address: ${[barangay, city].filter(Boolean).join(', ')}.`
-      }
+    locationInfo = `User is at: lat ${userLocation.lat.toFixed(5)}, lng ${userLocation.lng.toFixed(5)}.`
+    const { barangay, city } = userLocation.address || {}
+    if (barangay || city) {
+      locationInfo += ` Address: ${[barangay, city].filter(Boolean).join(', ')}.`
     }
   }
 
-  let placesInfo = 'No nearby places data is available right now.'
+  let placesInfo = 'No nearby places data available.'
   if (nearbyPlaces && nearbyPlaces.length > 0) {
     const sorted = [...nearbyPlaces].sort((a, b) => (a.distMeters || 0) - (b.distMeters || 0))
     placesInfo =
-      'Nearby places (sorted nearest first):\n' +
+      'Nearby places (nearest first):\n' +
       sorted
         .slice(0, 20)
         .map((p) => {
@@ -57,20 +72,40 @@ function buildSystemPrompt(userLocation, nearbyPlaces) {
         .join('\n')
   }
 
-  return `You are a smart local community assistant embedded inside a location-based app for Quezon City, Philippines. Your job is to help community members find local services, navigate emergencies, and get useful information.
+  let appDataInfo = ''
+  if (appData) {
+    const { helpRequests = [], posts = [] } = appData
+    if (helpRequests.length > 0) {
+      appDataInfo += '\nCurrent open help requests in the community:\n'
+      appDataInfo += helpRequests
+        .map((r) => `- [${r.urgency?.toUpperCase() || 'NORMAL'}] ${r.category}: ${r.description}${r.location ? ` (${r.location})` : ''}`)
+        .join('\n')
+    }
+    if (posts.length > 0) {
+      appDataInfo += '\n\nRecent community posts:\n'
+      appDataInfo += posts
+        .map((p) => `- ${p.authorName}${p.category ? ` [${p.category}]` : ''}: "${p.content}"`)
+        .join('\n')
+    }
+  }
+
+  return `You are a smart bilingual community assistant embedded in the QC Community app — a location-based help platform for Quezon City, Philippines.
+
+LANGUAGE RULE (CRITICAL): Detect the language of the user's latest message. If they write in Filipino/Tagalog, respond entirely in Filipino/Tagalog. If they write in English, respond in English. Never mix languages in a single response unless the user does.
 
 ${locationInfo}
 
 ${placesInfo}
+${appDataInfo}
 
 Core rules:
-1. Use the provided nearby places data for all location questions. Never invent locations or phone numbers.
-2. For emergency situations (keywords: help, accident, fire, danger, emergency, hurt, injured), respond with urgency. Prioritize hospitals and police. Keep your response short, clear, and action-focused.
-3. For location questions, list the nearest options first. Include name, distance, and phone number.
-4. If no nearby data matches the query, say so clearly and use general knowledge as a fallback, stating it is not real-time data.
-5. Keep responses concise. Use short paragraphs. Avoid excessive bullet points.
-6. Do not use emojis.
-7. Never redirect users to external websites or apps. If they need a map, mention the Map tab in this app.`
+1. Use the provided nearby places and app data. Never invent locations, phone numbers, or posts.
+2. For emergencies (accident, fire, danger, saklolo, sunog, aksidente), respond with urgency: prioritize hospitals and police, be short and action-focused.
+3. For location queries, list the nearest options first with name, distance, and phone.
+4. If no relevant data exists, state it clearly then use general knowledge (flag it as general, not real-time).
+5. Keep responses concise. Use short paragraphs. Avoid excessive bullet points. No emojis.
+6. Never redirect users to external sites. Reference the Map tab or Get Help section within this app.
+7. If asked how to use the app, explain: Home feed, Get Help (post a request), Give Help (volunteer), Map (nearby places), Resources, and Messages.`
 }
 
 app.get('/api/health', (_req, res) => {
@@ -78,7 +113,7 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.post('/api/ai-chat', async (req, res) => {
-  const { messages, userLocation, nearbyPlaces } = req.body
+  const { messages, userLocation, nearbyPlaces, appData } = req.body
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Invalid request: messages array is required.' })
@@ -87,7 +122,7 @@ app.post('/api/ai-chat', async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return res.status(503).json({
-      error: 'The AI service is not configured yet. Please add your OPENAI_API_KEY in the Replit Secrets panel.',
+      error: 'The AI service is not configured. Please add your OPENAI_API_KEY in the Replit Secrets panel.',
     })
   }
 
@@ -102,11 +137,17 @@ app.post('/api/ai-chat', async (req, res) => {
     return p
   })
 
-  const systemPrompt = buildSystemPrompt(userLocation, enrichedPlaces)
+  const detectedAction = detectAction(lastUserMsg)
+  const systemPrompt = buildSystemPrompt(userLocation, enrichedPlaces, appData)
+
+  const cleanMessages = messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: m.content }))
+    .slice(-10)
 
   const openAIMessages = [
     { role: 'system', content: systemPrompt },
-    ...messages.slice(-10),
+    ...cleanMessages,
   ]
 
   res.setHeader('Content-Type', 'text/event-stream')
@@ -114,13 +155,21 @@ app.post('/api/ai-chat', async (req, res) => {
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
 
-  const client = new OpenAI({ apiKey })
+  if (detectedAction) {
+    res.write(`data: ${JSON.stringify({ action: detectedAction })}\n\n`)
+  }
+
+  const isOpenRouter = apiKey.startsWith('sk-or-')
+  const client = new OpenAI({
+    apiKey,
+    ...(isOpenRouter && { baseURL: 'https://openrouter.ai/api/v1' }),
+  })
 
   try {
     const stream = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: openAIMessages,
-      max_tokens: isEmergency ? 250 : 700,
+      max_tokens: isEmergency ? 250 : 650,
       temperature: isEmergency ? 0.2 : 0.65,
       stream: true,
     })
@@ -137,10 +186,17 @@ app.post('/api/ai-chat', async (req, res) => {
     res.end()
   } catch (err) {
     console.error('[AI] OpenAI error:', err.message)
+    let friendlyError = 'The AI request failed. Please try again.'
+    const status = err?.status || err?.response?.status
+    if (status === 401) friendlyError = 'Invalid API key. Please check your OPENAI_API_KEY in Secrets.'
+    else if (status === 402) friendlyError = 'The AI account has insufficient credits. Please top up your OpenRouter or OpenAI account.'
+    else if (status === 429) friendlyError = 'Too many requests. Please wait a moment and try again.'
+    else if (status === 503) friendlyError = 'The AI service is temporarily unavailable. Please try again shortly.'
+
     if (!res.headersSent) {
-      res.status(500).json({ error: 'The AI request failed. Please try again.' })
+      res.status(500).json({ error: friendlyError })
     } else {
-      res.write(`data: ${JSON.stringify({ error: 'Stream interrupted. Please try again.' })}\n\n`)
+      res.write(`data: ${JSON.stringify({ error: friendlyError })}\n\n`)
       res.end()
     }
   }
