@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const app = express()
 const PORT = process.env.AI_SERVER_PORT || 3001
@@ -109,7 +109,7 @@ Core rules:
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', configured: !!process.env.OPENAI_API_KEY })
+  res.json({ status: 'ok', configured: !!process.env.GOOGLE_API_KEY })
 })
 
 app.post('/api/ai-chat', async (req, res) => {
@@ -119,10 +119,10 @@ app.post('/api/ai-chat', async (req, res) => {
     return res.status(400).json({ error: 'Invalid request: messages array is required.' })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) {
     return res.status(503).json({
-      error: 'The AI service is not configured. Please add your OPENAI_API_KEY in the Replit Secrets panel.',
+      error: 'The AI service is not configured. Please add your GOOGLE_API_KEY in the Replit Secrets panel.',
     })
   }
 
@@ -145,11 +145,6 @@ app.post('/api/ai-chat', async (req, res) => {
     .map((m) => ({ role: m.role, content: m.content }))
     .slice(-10)
 
-  const openAIMessages = [
-    { role: 'system', content: systemPrompt },
-    ...cleanMessages,
-  ]
-
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -159,24 +154,31 @@ app.post('/api/ai-chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ action: detectedAction })}\n\n`)
   }
 
-  const isOpenRouter = apiKey.startsWith('sk-or-')
-  const client = new OpenAI({
-    apiKey,
-    ...(isOpenRouter && { baseURL: 'https://openrouter.ai/api/v1' }),
-  })
-
   try {
-    const stream = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: openAIMessages,
-      max_tokens: isEmergency ? 250 : 650,
-      temperature: isEmergency ? 0.2 : 0.65,
-      stream: true,
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        maxOutputTokens: isEmergency ? 250 : 650,
+        temperature: isEmergency ? 0.2 : 0.65,
+      },
     })
 
-    for await (const chunk of stream) {
+    const history = cleanMessages.slice(0, -1).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }))
+
+    const chat = model.startChat({ history })
+
+    const lastMessage = cleanMessages[cleanMessages.length - 1]?.content || lastUserMsg
+
+    const streamResult = await chat.sendMessageStream(lastMessage)
+
+    for await (const chunk of streamResult.stream) {
       if (res.destroyed) break
-      const delta = chunk.choices[0]?.delta?.content
+      const delta = chunk.text()
       if (delta) {
         res.write(`data: ${JSON.stringify({ text: delta })}\n\n`)
       }
@@ -185,11 +187,11 @@ app.post('/api/ai-chat', async (req, res) => {
     res.write('data: [DONE]\n\n')
     res.end()
   } catch (err) {
-    console.error('[AI] OpenAI error:', err.message)
+    console.error('[AI] Gemini error:', err.message)
     let friendlyError = 'The AI request failed. Please try again.'
     const status = err?.status || err?.response?.status
-    if (status === 401) friendlyError = 'Invalid API key. Please check your OPENAI_API_KEY in Secrets.'
-    else if (status === 402) friendlyError = 'The AI account has insufficient credits. Please top up your OpenRouter or OpenAI account.'
+    if (status === 400) friendlyError = 'Invalid request sent to the AI. Please try again.'
+    else if (status === 401 || status === 403) friendlyError = 'Invalid API key. Please check your GOOGLE_API_KEY in Secrets.'
     else if (status === 429) friendlyError = 'Too many requests. Please wait a moment and try again.'
     else if (status === 503) friendlyError = 'The AI service is temporarily unavailable. Please try again shortly.'
 
