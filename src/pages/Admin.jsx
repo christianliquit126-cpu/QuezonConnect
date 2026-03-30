@@ -130,6 +130,8 @@ function OverviewTab({ users, requests, posts, updates, reports }) {
 
 function RequestsTab({ requests }) {
   const [statusError, setStatusError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const handleStatus = async (id, status) => {
     setStatusError('')
@@ -140,11 +142,13 @@ function RequestsTab({ requests }) {
     }
   }
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this help request?')) return
+    setDeleteError('')
     try {
       await deleteDoc(doc(db, 'helpRequests', id))
+      setConfirmDeleteId(null)
     } catch {
-      window.alert('Failed to delete. Please try again.')
+      setDeleteError('Failed to delete. Please try again.')
+      setConfirmDeleteId(null)
     }
   }
 
@@ -152,6 +156,9 @@ function RequestsTab({ requests }) {
     <div className="space-y-3">
       {statusError && (
         <p className="text-sm text-red-600 dark:text-red-400 px-1">{statusError}</p>
+      )}
+      {deleteError && (
+        <p className="text-sm text-red-600 dark:text-red-400 px-1">{deleteError}</p>
       )}
       <div className="card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
@@ -183,9 +190,16 @@ function RequestsTab({ requests }) {
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
                 </select>
-                <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {confirmDeleteId === r.id ? (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleDelete(r.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -200,10 +214,14 @@ function UpdatesTab({ updates }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', type: 'INFO', location: '' })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     setSaving(true)
+    setSaveError('')
     try {
       await addDoc(collection(db, 'communityUpdates'), {
         ...form,
@@ -212,18 +230,20 @@ function UpdatesTab({ updates }) {
       setForm({ title: '', description: '', type: 'INFO', location: '' })
       setShowForm(false)
     } catch {
-      window.alert('Failed to post update. Please try again.')
+      setSaveError('Failed to post update. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this update?')) return
+    setDeleteError('')
     try {
       await deleteDoc(doc(db, 'communityUpdates', id))
+      setConfirmDeleteId(null)
     } catch {
-      window.alert('Failed to delete update. Please try again.')
+      setDeleteError('Failed to delete update. Please try again.')
+      setConfirmDeleteId(null)
     }
   }
 
@@ -270,6 +290,9 @@ function UpdatesTab({ updates }) {
             <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Location (optional)</label>
             <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Cubao, Quezon City" className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
+          {saveError && (
+            <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
+          )}
           <button onClick={handleSave} disabled={saving || !form.title.trim() || !form.description.trim()} className="btn-primary text-sm disabled:opacity-50 flex items-center gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             Post Update
@@ -277,6 +300,9 @@ function UpdatesTab({ updates }) {
         </div>
       )}
 
+      {deleteError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+      )}
       <div className="card overflow-hidden">
         {updates.length === 0 ? (
           <p className="px-5 py-8 text-sm text-gray-400 text-center">No updates yet. Create one above.</p>
@@ -293,9 +319,16 @@ function UpdatesTab({ updates }) {
                   {u.location && <p className="text-xs text-gray-400 mt-0.5">{u.location}</p>}
                   <p className="text-xs text-gray-400 mt-1">{u.createdAt ? formatDistanceToNow(u.createdAt, { addSuffix: true }) : ''}</p>
                 </div>
-                <button onClick={() => handleDelete(u.id)} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {confirmDeleteId === u.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => handleDelete(u.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(u.id)} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -308,24 +341,30 @@ function UpdatesTab({ updates }) {
 function UsersTab({ users }) {
   const { currentUser } = useAuth()
   const [deletingId, setDeletingId] = useState(null)
+  const [confirmBanId, setConfirmBanId] = useState(null)
+  const [confirmAdminId, setConfirmAdminId] = useState(null)
+  const [actionError, setActionError] = useState('')
 
   const handleToggleAdmin = async (user) => {
     if (user.uid === currentUser.uid) return
+    setActionError('')
     const newRole = user.role === 'admin' ? 'member' : 'admin'
-    if (!window.confirm(`${newRole === 'admin' ? 'Promote' : 'Remove'} ${user.name} as admin?`)) return
     try {
       await updateDoc(doc(db, 'users', user.uid), { role: newRole })
+      setConfirmAdminId(null)
     } catch {
-      window.alert('Failed to update admin status. Please try again.')
+      setActionError('Failed to update admin status. Please try again.')
+      setConfirmAdminId(null)
     }
   }
 
   const handleDeleteUser = async (user) => {
     if (user.uid === currentUser.uid) return
-    if (!window.confirm(`Remove ${user.name} from the community? Their posts will remain but their account will be deactivated.`)) return
     setDeletingId(user.uid)
+    setActionError('')
     try {
       await setDoc(doc(db, 'users', user.uid), { banned: true, role: 'banned', bannedAt: serverTimestamp() }, { merge: true })
+      setConfirmBanId(null)
     } finally {
       setDeletingId(null)
     }
@@ -336,6 +375,9 @@ function UsersTab({ users }) {
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <p className="text-sm text-red-600 dark:text-red-400 px-1">{actionError}</p>
+      )}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <h3 className="font-semibold text-gray-900 dark:text-white">Active Users ({activeUsers.length})</h3>
@@ -366,25 +408,39 @@ function UsersTab({ users }) {
                 </div>
                 {u.uid !== currentUser.uid && (
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleToggleAdmin(u)}
-                      title={u.role === 'admin' ? 'Remove admin' : 'Make admin'}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        u.role === 'admin'
-                          ? 'text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                          : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
-                      }`}
-                    >
-                      {u.role === 'admin' ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(u)}
-                      disabled={deletingId === u.uid}
-                      title="Remove user"
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-                    >
-                      <UserX className="w-4 h-4" />
-                    </button>
+                    {confirmAdminId === u.uid ? (
+                      <>
+                        <button onClick={() => handleToggleAdmin(u)} className="text-xs px-2 py-1 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors font-medium">Yes</button>
+                        <button onClick={() => setConfirmAdminId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                      </>
+                    ) : confirmBanId === u.uid ? (
+                      <>
+                        <button onClick={() => handleDeleteUser(u)} disabled={deletingId === u.uid} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium disabled:opacity-60">Yes</button>
+                        <button onClick={() => setConfirmBanId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setConfirmAdminId(u.uid)}
+                          title={u.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            u.role === 'admin'
+                              ? 'text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                              : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                          }`}
+                        >
+                          {u.role === 'admin' ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => setConfirmBanId(u.uid)}
+                          disabled={deletingId === u.uid}
+                          title="Remove user"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -415,7 +471,7 @@ function UsersTab({ users }) {
                     try {
                       await updateDoc(doc(db, 'users', u.uid), { banned: false, role: 'member' })
                     } catch {
-                      window.alert('Failed to restore user. Please try again.')
+                      setActionError('Failed to restore user. Please try again.')
                     }
                   }}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:underline shrink-0"
@@ -432,49 +488,72 @@ function UsersTab({ users }) {
 }
 
 function PostsTab({ posts }) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
+
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this post? This action cannot be undone.')) return
-    await deleteDoc(doc(db, 'posts', id))
+    setDeleteError('')
+    try {
+      await deleteDoc(doc(db, 'posts', id))
+      setConfirmDeleteId(null)
+    } catch {
+      setDeleteError('Failed to delete post. Please try again.')
+      setConfirmDeleteId(null)
+    }
   }
 
   return (
-    <div className="card overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <h3 className="font-semibold text-gray-900 dark:text-white">All Posts ({posts.length})</h3>
-      </div>
-      {posts.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-400 text-center">No posts yet</p>
-      ) : (
-        <div className="divide-y divide-gray-50 dark:divide-gray-800">
-          {posts.map((p) => (
-            <div key={p.id} className="px-5 py-4 flex items-start gap-3">
-              <img
-                src={p.userAvatar || p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`}
-                alt={p.userName || p.authorName}
-                className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{p.userName || p.authorName}</p>
-                  {p.category && (
-                    <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">{p.category}</span>
-                  )}
-                  <span className="text-xs text-gray-400">{p.createdAt ? formatDistanceToNow(p.createdAt, { addSuffix: true }) : ''}</span>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2">{p.content}</p>
-              </div>
-              <button onClick={() => handleDelete(p.id)} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
+    <div className="space-y-3">
+      {deleteError && (
+        <p className="text-sm text-red-600 dark:text-red-400 px-1">{deleteError}</p>
       )}
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="font-semibold text-gray-900 dark:text-white">All Posts ({posts.length})</h3>
+        </div>
+        {posts.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-400 text-center">No posts yet</p>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+            {posts.map((p) => (
+              <div key={p.id} className="px-5 py-4 flex items-start gap-3">
+                <img
+                  src={p.userAvatar || p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`}
+                  alt={p.userName || p.authorName}
+                  className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{p.userName || p.authorName}</p>
+                    {p.category && (
+                      <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">{p.category}</span>
+                    )}
+                    <span className="text-xs text-gray-400">{p.createdAt ? formatDistanceToNow(p.createdAt, { addSuffix: true }) : ''}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 line-clamp-2">{p.content}</p>
+                </div>
+                {confirmDeleteId === p.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => handleDelete(p.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(p.id)} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 function ReportsTab({ reports }) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
   const handleResolve = async (id) => {
     await updateDoc(doc(db, 'reports', id), { status: 'resolved', resolvedAt: serverTimestamp() })
   }
@@ -482,8 +561,8 @@ function ReportsTab({ reports }) {
     await updateDoc(doc(db, 'reports', id), { status: 'dismissed' })
   }
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this report?')) return
     await deleteDoc(doc(db, 'reports', id))
+    setConfirmDeleteId(null)
   }
 
   const open = reports.filter((r) => r.status === 'open' || !r.status)
@@ -522,9 +601,16 @@ function ReportsTab({ reports }) {
                   <button onClick={() => handleDismiss(r.id)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                     Dismiss
                   </button>
-                  <button onClick={() => handleDelete(r.id)} className="ml-auto p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {confirmDeleteId === r.id ? (
+                    <div className="ml-auto flex items-center gap-1">
+                      <button onClick={() => handleDelete(r.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDeleteId(r.id)} className="ml-auto p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -544,9 +630,16 @@ function ReportsTab({ reports }) {
                   {r.status}
                 </span>
                 <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex-1">{r.reason} {r.description && `— ${r.description}`}</p>
-                <button onClick={() => handleDelete(r.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                {confirmDeleteId === r.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => handleDelete(r.id)} className="text-xs px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(r.id)} className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -583,9 +676,11 @@ function ResourcesTab({ resources }) {
     closeForm()
   }
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this resource?')) return
     await deleteDoc(doc(db, 'resources', id))
+    setConfirmDeleteId(null)
   }
 
   return (
@@ -676,9 +771,16 @@ function ResourcesTab({ resources }) {
                   <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {confirmDeleteId === r.id ? (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleDelete(r.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDeleteId(r.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

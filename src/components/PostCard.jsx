@@ -207,7 +207,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           commentCount: increment(-1),
         })
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to delete comment:', err)
+    }
   }
 
   const EDIT_MAX = 500
@@ -240,8 +242,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     setEditContent(post.content)
   }
 
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
   const handleDelete = async () => {
-    if (!window.confirm('Delete this post? This cannot be undone.')) return
     setDeleting(true)
     setDeleteError('')
     try {
@@ -250,6 +253,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     } catch {
       setDeleting(false)
       setDeleteError('Failed to delete post. Please try again.')
+      setConfirmDelete(false)
     }
   }
 
@@ -311,6 +315,13 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
         deleting ? 'opacity-50 pointer-events-none' : ''
       }`}
     >
+      {confirmDelete && (
+        <div className="px-5 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-3">
+          <p className="text-xs text-red-700 dark:text-red-400 flex-1">Delete this post? This cannot be undone.</p>
+          <button onClick={handleDelete} className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Delete</button>
+          <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</button>
+        </div>
+      )}
       {deleteError && (
         <div className="px-5 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/30">
           <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
@@ -362,7 +373,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                   }}
                   onDelete={() => {
                     setMenuOpen(false)
-                    handleDelete()
+                    setConfirmDelete(true)
                   }}
                   onClose={() => setMenuOpen(false)}
                 />

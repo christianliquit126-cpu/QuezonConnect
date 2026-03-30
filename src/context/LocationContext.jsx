@@ -24,6 +24,13 @@ export const LocationProvider = ({ children }) => {
         if (status.state === 'granted') {
           geo.detect()
         }
+        const handleChange = () => {
+          if (status.state === 'granted') {
+            geo.detect()
+          }
+        }
+        status.addEventListener('change', handleChange)
+        return () => status.removeEventListener('change', handleChange)
       })
       .catch(() => {})
   }, [])

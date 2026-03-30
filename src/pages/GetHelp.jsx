@@ -74,6 +74,8 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
   const StatusIcon = status.icon
   const isOwner = currentUser?.uid === req.uid
   const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const urgency = URGENCY_LEVELS.find((u) => u.value === req.urgency) || URGENCY_LEVELS[0]
 
@@ -88,12 +90,14 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
   }, [req.requestId])
 
   const handleDelete = useCallback(async () => {
-    if (!window.confirm('Delete this request? This cannot be undone.')) return
+    setDeleteError('')
     setDeleting(true)
     try {
       await deleteDoc(doc(db, 'helpRequests', req.requestId))
     } catch {
+      setDeleteError('Failed to delete. Please try again.')
       setDeleting(false)
+      setConfirmDelete(false)
     }
   }, [req.requestId])
 
@@ -164,32 +168,55 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       </div>
 
       {isOwner ? (
-        <div className="flex gap-2 flex-wrap">
-          {req.status !== 'in_progress' && (
-            <button
-              onClick={() => handleStatusChange('in_progress')}
-              className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-            >
-              Mark In Progress
-            </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {req.status !== 'in_progress' && (
+              <button
+                onClick={() => handleStatusChange('in_progress')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              >
+                Mark In Progress
+              </button>
+            )}
+            {req.status !== 'completed' && (
+              <button
+                onClick={() => handleStatusChange('completed')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                Mark Completed
+              </button>
+            )}
+            {req.status !== 'completed' && !confirmDelete && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
+              >
+                <Trash2 className="w-3 h-3" />
+                Delete
+              </button>
+            )}
+          </div>
+          {confirmDelete && (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800">
+              <p className="text-xs text-red-700 dark:text-red-400 flex-1">Delete this request? This cannot be undone.</p>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-xs px-2.5 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium disabled:opacity-60"
+              >
+                {deleting ? 'Deleting...' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           )}
-          {req.status !== 'completed' && (
-            <button
-              onClick={() => handleStatusChange('completed')}
-              className="text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-            >
-              Mark Completed
-            </button>
-          )}
-          {req.status !== 'completed' && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1"
-            >
-              <Trash2 className="w-3 h-3" />
-              Delete
-            </button>
+          {deleteError && (
+            <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>
           )}
         </div>
       ) : (
@@ -222,10 +249,11 @@ export default function GetHelp() {
     location: displayUser?.location || '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const routerLocation = useLocation()
   const categoryParam = new URLSearchParams(routerLocation.search).get('category')
-  const [filter, setFilter] = useState(categoryParam || 'All')
-  const [categoryFilter, setCategoryFilter] = useState('All')
+  const [filter, setFilter] = useState('All')
+  const [categoryFilter, setCategoryFilter] = useState(categoryParam || 'All')
   const [distanceFilter, setDistanceFilter] = useState(false)
   const [myRequestsOnly, setMyRequestsOnly] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
@@ -268,6 +296,7 @@ export default function GetHelp() {
     if (!displayUser) return
     if (!form.title.trim() || !form.description.trim()) return
     setSubmitting(true)
+    setSubmitError('')
     try {
       await addDoc(collection(db, 'helpRequests'), {
         uid: displayUser.uid,
@@ -298,7 +327,7 @@ export default function GetHelp() {
       setImageUrl(null)
       setShowForm(false)
     } catch {
-      // keep form open so user can retry
+      setSubmitError('Failed to submit your request. Please check your connection and try again.')
     } finally {
       setSubmitting(false)
     }
@@ -307,6 +336,8 @@ export default function GetHelp() {
   const handleOfferHelp = useCallback((req) => {
     navigate(`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName)}&avatar=${encodeURIComponent(req.userAvatar || '')}`)
   }, [navigate])
+
+  const URGENCY_ORDER = { emergency: 0, urgent: 1, normal: 2 }
 
   const filtered = React.useMemo(() => {
     let result = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
@@ -325,6 +356,12 @@ export default function GetHelp() {
         }))
         .filter((r) => r.distance <= 10)
         .sort((a, b) => a.distance - b.distance)
+    } else {
+      result = [...result].sort((a, b) => {
+        const urgencyDiff = (URGENCY_ORDER[a.urgency] ?? 2) - (URGENCY_ORDER[b.urgency] ?? 2)
+        if (urgencyDiff !== 0) return urgencyDiff
+        return b.createdAt - a.createdAt
+      })
     }
     return result
   }, [requests, filter, categoryFilter, distanceFilter, myRequestsOnly, currentUser, location])
@@ -477,6 +514,12 @@ export default function GetHelp() {
                 <ImageUpload onUpload={(url) => setImageUrl(url)} />
               )}
             </div>
+            {submitError && (
+              <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {submitError}
+              </p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
@@ -488,7 +531,7 @@ export default function GetHelp() {
               </button>
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setImageUrl(null) }}
+                onClick={() => { setShowForm(false); setImageUrl(null); setSubmitError('') }}
                 className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel

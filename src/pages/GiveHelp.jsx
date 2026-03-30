@@ -44,6 +44,7 @@ export default function GiveHelp() {
   const [editingSkills, setEditingSkills] = useState(false)
   const [updatedSkills, setUpdatedSkills] = useState([])
   const [savingSkills, setSavingSkills] = useState(false)
+  const [registerError, setRegisterError] = useState('')
 
   useEffect(() => {
     const vq = query(collection(db, 'volunteers'), orderBy('helpCount', 'desc'))
@@ -76,9 +77,6 @@ export default function GiveHelp() {
     return () => { unsub1(); unsub2() }
   }, [currentUser])
 
-  useEffect(() => {
-    if (!currentUser) { setCheckingVolunteer(false); return }
-  }, [currentUser])
 
   const toggleSkill = (s) =>
     setSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -86,6 +84,7 @@ export default function GiveHelp() {
   const handleRegister = async () => {
     if (!skills.length || !displayUser) return
     setSaving(true)
+    setRegisterError('')
     try {
       await setDoc(doc(db, 'volunteers', currentUser.uid), {
         uid: displayUser.uid,
@@ -97,7 +96,7 @@ export default function GiveHelp() {
         createdAt: serverTimestamp(),
       })
     } catch {
-      // registration failed silently
+      setRegisterError('Registration failed. Please check your connection and try again.')
     } finally {
       setSaving(false)
     }
@@ -280,6 +279,9 @@ export default function GiveHelp() {
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Register as Volunteer
             </button>
+            {registerError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mt-3">{registerError}</p>
+            )}
           </div>
         )
       )}

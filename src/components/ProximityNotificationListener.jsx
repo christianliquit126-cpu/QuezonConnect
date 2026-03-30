@@ -38,6 +38,9 @@ export default function ProximityNotificationListener() {
           if (!data.lat || !data.lng) return
           if (data.status === 'completed') return
 
+          const createdAt = data.createdAt?.toDate?.()
+          if (createdAt && Date.now() - createdAt.getTime() > 60 * 60 * 1000) return
+
           const dist = haversine(location.lat, location.lng, data.lat, data.lng)
           if (dist <= NOTIFY_RADIUS_KM) {
             createNotification({

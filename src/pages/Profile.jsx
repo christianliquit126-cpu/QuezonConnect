@@ -106,7 +106,9 @@ export default function Profile() {
     if (item.type === 'post') {
       navigate('/')
     } else {
-      navigate('/get-help')
+      const params = new URLSearchParams()
+      if (item.category) params.set('category', item.category)
+      navigate(`/get-help${params.toString() ? '?' + params.toString() : ''}`)
     }
   }
 

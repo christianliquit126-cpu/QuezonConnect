@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Utensils, Stethoscope, Car, BookOpen, Home, Shirt, Zap, Users } from 'lucide-react'
 
@@ -21,7 +21,8 @@ export default function Categories() {
   const [requestCounts, setRequestCounts] = useState(null)
 
   useEffect(() => {
-    const unsubPosts = onSnapshot(collection(db, 'posts'), (snap) => {
+    const postsQ = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(200))
+    const unsubPosts = onSnapshot(postsQ, (snap) => {
       const tally = {}
       snap.docs.forEach((d) => {
         const cat = d.data().category
@@ -30,7 +31,8 @@ export default function Categories() {
       setPostCounts(tally)
     })
 
-    const unsubRequests = onSnapshot(collection(db, 'helpRequests'), (snap) => {
+    const requestsQ = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(200))
+    const unsubRequests = onSnapshot(requestsQ, (snap) => {
       const tally = {}
       snap.docs.forEach((d) => {
         const cat = d.data().category

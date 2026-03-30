@@ -119,7 +119,14 @@ export default function Settings() {
         city: form.city || '',
         lat: form.lat || null,
         lng: form.lng || null,
-        isQC: form.city?.toLowerCase().includes('quezon') || form.city?.toUpperCase().includes('QC') || false,
+        isQC: (() => {
+          const cityName = form.city?.toLowerCase() || ''
+          if (cityName.includes('quezon') || cityName.includes(' qc')) return true
+          if (form.lat && form.lng) {
+            return form.lat >= 14.55 && form.lat <= 14.76 && form.lng >= 120.98 && form.lng <= 121.13
+          }
+          return false
+        })(),
         bio: form.bio.trim(),
       })
       await refreshProfile()

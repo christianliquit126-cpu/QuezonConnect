@@ -177,18 +177,6 @@ export default function Messages() {
     }
   }, [activeChat?.chatId])
 
-  // Handle ?startChat= query param from "Offer Help" button
-  useEffect(() => {
-    const params = new URLSearchParams(routerLocation.search)
-    const startChatUid = params.get('startChat')
-    const startChatName = params.get('name')
-    const startChatAvatar = params.get('avatar')
-    if (startChatUid && currentUser && startChatUid !== currentUser.uid) {
-      const otherUser = { uid: startChatUid, name: startChatName || 'User', avatar: startChatAvatar || '' }
-      startChat(otherUser)
-    }
-  }, [currentUser, routerLocation.search, startChat])
-
   const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_')
 
   const markChatAsRead = useCallback(async (chatId) => {
@@ -230,6 +218,18 @@ export default function Messages() {
     setShowNewChat(false)
     setUserSearch('')
   }, [currentUser, displayUser])
+
+  // Handle ?startChat= query param from "Offer Help" button
+  useEffect(() => {
+    const params = new URLSearchParams(routerLocation.search)
+    const startChatUid = params.get('startChat')
+    const startChatName = params.get('name')
+    const startChatAvatar = params.get('avatar')
+    if (startChatUid && currentUser && startChatUid !== currentUser.uid) {
+      const otherUser = { uid: startChatUid, name: startChatName || 'User', avatar: startChatAvatar || '' }
+      startChat(otherUser)
+    }
+  }, [currentUser, routerLocation.search, startChat])
 
   const MSG_MAX = 2000
 

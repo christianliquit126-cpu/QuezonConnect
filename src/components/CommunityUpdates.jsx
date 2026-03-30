@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { ShieldCheck, ChevronRight, ChevronUp, Loader2 } from 'lucide-react'
 import { db } from '../firebase'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
+import { formatDistanceToNow } from 'date-fns'
 
 const TYPE_COLORS = {
   NEW: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -82,9 +83,14 @@ export default function CommunityUpdates() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
                   {update.description}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {update.location || ''}
-                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {update.location && (
+                    <p className="text-xs text-gray-400">{update.location}</p>
+                  )}
+                  <p className="text-xs text-gray-300 dark:text-gray-600">
+                    {update.createdAt ? formatDistanceToNow(update.createdAt, { addSuffix: true }) : ''}
+                  </p>
+                </div>
               </div>
             </div>
           ))}
