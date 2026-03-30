@@ -142,7 +142,7 @@ export const AuthProvider = ({ children }) => {
         avatar:
           userProfile?.avatar ||
           currentUser.photoURL ||
-          `https://ui-avatars.com/api/?name=User&background=2563eb&color=fff`,
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.name || currentUser.displayName || 'User')}&background=2563eb&color=fff`,
         location: userProfile?.location || '',
         barangay: userProfile?.barangay || '',
         city: userProfile?.city || '',

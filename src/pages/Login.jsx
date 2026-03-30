@@ -20,6 +20,25 @@ export default function Login() {
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
 
+  const getAuthError = (err) => {
+    switch (err.code) {
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+      case 'auth/invalid-email':
+        return 'Incorrect email or password. Please try again.'
+      case 'auth/too-many-requests':
+        return 'Too many failed attempts. Please wait a few minutes and try again.'
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support.'
+      case 'auth/network-request-failed':
+        return 'Network error. Check your internet connection and try again.'
+      default:
+        return err.message?.replace('Firebase: ', '').replace(/\s*\(.*?\)\.?/, '').trim() ||
+          'Sign-in failed. Please try again.'
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -28,10 +47,7 @@ export default function Login() {
       await login(form.email, form.password)
       navigate('/')
     } catch (err) {
-      setError(
-        err.message?.replace('Firebase: ', '').replace(/\(.*\)\.?/, '').trim() ||
-          'Login failed. Please check your credentials.'
-      )
+      setError(getAuthError(err))
     } finally {
       setLoading(false)
     }

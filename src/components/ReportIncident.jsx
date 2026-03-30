@@ -12,6 +12,7 @@ export default function ReportIncident() {
   const [form, setForm] = useState({ title: '', description: '', location: '' })
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const { location, address } = useLocationCtx()
   const { displayUser } = useAuth()
 
@@ -22,6 +23,7 @@ export default function ReportIncident() {
   const handleOpen = () => {
     setOpen(true)
     setDone(false)
+    setSubmitError('')
     setForm({ title: '', description: '', location: locationLabel })
   }
 
@@ -30,6 +32,7 @@ export default function ReportIncident() {
     if (!displayUser) return
     if (!form.title.trim() || !form.description.trim()) return
     setSaving(true)
+    setSubmitError('')
     try {
       await addDoc(collection(db, 'reports'), {
         title: form.title.trim(),
@@ -52,9 +55,10 @@ export default function ReportIncident() {
         setForm({ title: '', description: '', location: '' })
       }, 1800)
     } catch {
+      setSubmitError('Failed to submit report. Please check your connection and try again.')
+    } finally {
       setSaving(false)
     }
-    setSaving(false)
   }
 
   if (!isConfigured) return null
@@ -156,6 +160,10 @@ export default function ReportIncident() {
                       </p>
                     )}
                   </div>
+
+                  {submitError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 text-center">{submitError}</p>
+                  )}
 
                   <button
                     type="submit"

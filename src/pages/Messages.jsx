@@ -15,6 +15,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  limit,
 } from 'firebase/firestore'
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns'
 import { Send, Search, ArrowLeft, Users, Loader2, MessageCircle } from 'lucide-react'
@@ -158,14 +159,14 @@ export default function Messages() {
   useEffect(() => {
     if (!showNewChat) return
     setLoadingUsers(true)
-    getDocs(collection(db, 'users')).then((snap) => {
+    getDocs(query(collection(db, 'users'), limit(200))).then((snap) => {
       setAllUsers(
         snap.docs
           .map((d) => d.data())
           .filter((u) => u.uid !== currentUser?.uid && u.role !== 'banned')
       )
       setLoadingUsers(false)
-    })
+    }).catch(() => setLoadingUsers(false))
   }, [showNewChat, currentUser])
 
   useEffect(() => {
@@ -229,31 +230,37 @@ export default function Messages() {
     setUserSearch('')
   }, [currentUser, displayUser])
 
+  const MSG_MAX = 2000
+
   const handleSend = async (e) => {
     e.preventDefault()
-    if (!input.trim() || !activeChat) return
     const text = input.trim()
+    if (!text || !activeChat || text.length > MSG_MAX) return
     setInput('')
-    const otherId = activeChat.participants?.find((p) => p !== currentUser.uid)
-    await addDoc(collection(db, 'chats', activeChat.chatId, 'messages'), {
-      uid: currentUser.uid,
-      content: text,
-      timestamp: serverTimestamp(),
-    })
-    await updateDoc(doc(db, 'chats', activeChat.chatId), {
-      lastMessage: text,
-      lastSenderId: currentUser.uid,
-      updatedAt: serverTimestamp(),
-    })
-    if (otherId) {
-      createNotification({
-        recipientUid: otherId,
-        type: 'message',
-        message: `${displayUser.name}: ${text.length > 60 ? text.slice(0, 60) + '…' : text}`,
-        link: '/messages',
-        senderName: displayUser.name,
-        senderAvatar: displayUser.avatar,
+    try {
+      const otherId = activeChat.participants?.find((p) => p !== currentUser.uid)
+      await addDoc(collection(db, 'chats', activeChat.chatId, 'messages'), {
+        uid: currentUser.uid,
+        content: text,
+        timestamp: serverTimestamp(),
       })
+      await updateDoc(doc(db, 'chats', activeChat.chatId), {
+        lastMessage: text,
+        lastSenderId: currentUser.uid,
+        updatedAt: serverTimestamp(),
+      })
+      if (otherId) {
+        createNotification({
+          recipientUid: otherId,
+          type: 'message',
+          message: `${displayUser.name}: ${text.length > 60 ? text.slice(0, 60) + '…' : text}`,
+          link: '/messages',
+          senderName: displayUser.name,
+          senderAvatar: displayUser.avatar,
+        })
+      }
+    } catch {
+      setInput(text)
     }
   }
 
@@ -523,26 +530,34 @@ export default function Messages() {
             </div>
 
             {/* Input */}
-            <form
-              onSubmit={handleSend}
-              className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 dark:border-gray-800 shrink-0"
-            >
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message... (Enter to send)"
-                className="input-field flex-1"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                className="w-9 h-9 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+            <div className="border-t border-gray-100 dark:border-gray-800 shrink-0">
+              {input.length >= MSG_MAX * 0.9 && (
+                <p className={`px-4 pt-2 text-xs text-right ${input.length >= MSG_MAX ? 'text-red-500' : 'text-amber-500'}`}>
+                  {MSG_MAX - input.length} characters remaining
+                </p>
+              )}
+              <form
+                onSubmit={handleSend}
+                className="flex items-center gap-2 px-4 py-3"
               >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  maxLength={MSG_MAX}
+                  placeholder="Type a message... (Enter to send)"
+                  className={`input-field flex-1 ${input.length >= MSG_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || input.length > MSG_MAX}
+                  className="w-9 h-9 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
         ) : (
           <div className="flex-1 hidden md:flex flex-col items-center justify-center text-center p-8">

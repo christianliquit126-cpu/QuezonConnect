@@ -129,16 +129,31 @@ function OverviewTab({ users, requests, posts, updates, reports }) {
 }
 
 function RequestsTab({ requests }) {
+  const [statusError, setStatusError] = useState('')
+
   const handleStatus = async (id, status) => {
-    await updateDoc(doc(db, 'helpRequests', id), { status })
+    setStatusError('')
+    try {
+      await updateDoc(doc(db, 'helpRequests', id), { status })
+    } catch {
+      setStatusError('Failed to update status. Please try again.')
+    }
   }
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this help request?')) return
-    await deleteDoc(doc(db, 'helpRequests', id))
+    try {
+      await deleteDoc(doc(db, 'helpRequests', id))
+    } catch {
+      window.alert('Failed to delete. Please try again.')
+    }
   }
 
   return (
-    <div className="card overflow-hidden">
+    <div className="space-y-3">
+      {statusError && (
+        <p className="text-sm text-red-600 dark:text-red-400 px-1">{statusError}</p>
+      )}
+      <div className="card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
         <h3 className="font-semibold text-gray-900 dark:text-white">All Help Requests ({requests.length})</h3>
       </div>
@@ -177,6 +192,7 @@ function RequestsTab({ requests }) {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }
@@ -189,18 +205,27 @@ function UpdatesTab({ updates }) {
   const handleSave = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     setSaving(true)
-    await addDoc(collection(db, 'communityUpdates'), {
-      ...form,
-      createdAt: serverTimestamp(),
-    })
-    setForm({ title: '', description: '', type: 'INFO', location: '' })
-    setShowForm(false)
-    setSaving(false)
+    try {
+      await addDoc(collection(db, 'communityUpdates'), {
+        ...form,
+        createdAt: serverTimestamp(),
+      })
+      setForm({ title: '', description: '', type: 'INFO', location: '' })
+      setShowForm(false)
+    } catch {
+      window.alert('Failed to post update. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this update?')) return
-    await deleteDoc(doc(db, 'communityUpdates', id))
+    try {
+      await deleteDoc(doc(db, 'communityUpdates', id))
+    } catch {
+      window.alert('Failed to delete update. Please try again.')
+    }
   }
 
   const TYPE_COLORS = {
@@ -289,7 +314,11 @@ function UsersTab({ users }) {
     if (user.uid === currentUser.uid) return
     const newRole = user.role === 'admin' ? 'member' : 'admin'
     if (!window.confirm(`${newRole === 'admin' ? 'Promote' : 'Remove'} ${user.name} as admin?`)) return
-    await updateDoc(doc(db, 'users', user.uid), { role: newRole })
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { role: newRole })
+    } catch {
+      window.alert('Failed to update admin status. Please try again.')
+    }
   }
 
   const handleDeleteUser = async (user) => {
@@ -384,7 +413,11 @@ function UsersTab({ users }) {
                 </div>
                 <button
                   onClick={async () => {
-                    await updateDoc(doc(db, 'users', u.uid), { banned: false, role: 'member' })
+                    try {
+                      await updateDoc(doc(db, 'users', u.uid), { banned: false, role: 'member' })
+                    } catch {
+                      window.alert('Failed to restore user. Please try again.')
+                    }
                   }}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:underline shrink-0"
                 >
