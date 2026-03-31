@@ -11,6 +11,9 @@ const SAMPLE_INTERVAL_MS = 800 // pause between GPS samples
 const ACCURACY_GOOD_M = 100 // GPS accuracy considered excellent
 const ACCURACY_ACCEPTABLE_M = 800 // GPS accuracy considered usable
 const ACCURACY_POOR_M = 2000 // above this = too poor, try IP or cache
+// Hard threshold: GPS results with accuracy worse than this are rejected entirely.
+// IP-based location (~5000m) always exceeds this and is never auto-applied.
+const ACCURACY_THRESHOLD_M = 1000
 
 // Haversine distance in metres
 const distanceMeters = (lat1, lng1, lat2, lng2) => {
@@ -254,13 +257,16 @@ export default function useGeolocation() {
 
         if (!isValidCoord(lat, lng)) return
 
+        // Enforce the same accuracy gate as the initial detect
+        if (acc > ACCURACY_THRESHOLD_M) return
+
         const prev = watchedLocationRef.current
         if (prev) {
           const dist = distanceMeters(prev.lat, prev.lng, lat, lng)
           if (dist < WATCH_MOVE_THRESHOLD_M) return // haven't moved enough
         }
 
-        // Only update if accuracy improved or this is the first watch update
+        // Only update if accuracy is comparable or better than current
         const currentBestAcc = lastAccuracyRef.current
         if (currentBestAcc !== null && acc > currentBestAcc * 2) return // significantly worse, skip
 
@@ -273,7 +279,7 @@ export default function useGeolocation() {
         setLocation({ lat, lng })
         setAccuracy(acc)
         setLocationSource('gps-high')
-        setLocationStatus(classifyAccuracy(acc) === 'unusable' ? 'low-accuracy' : 'locked')
+        setLocationStatus('locked')
 
         // Geocode if moved significantly
         const prev2 = lastGeocodedLocRef.current
@@ -321,10 +327,11 @@ export default function useGeolocation() {
     const timeSinceLast = now - lastDetectTimeRef.current
     const prevAccuracyPoor =
       lastAccuracyRef.current === null ||
+      lastAccuracyRef.current > ACCURACY_THRESHOLD_M ||
       classifyAccuracy(lastAccuracyRef.current) === 'poor' ||
       classifyAccuracy(lastAccuracyRef.current) === 'unusable'
 
-    // Allow re-detection if previous result was poor, even within throttle window
+    // Allow re-detection if previous result was inaccurate, even within throttle window
     if (timeSinceLast < DETECT_THROTTLE_MS && location && !prevAccuracyPoor) {
       return
     }
@@ -348,7 +355,7 @@ export default function useGeolocation() {
       }
     } catch (err) {
       if (err.code === 1) {
-        // Permission denied
+        // Permission denied — use cached location if available, otherwise block
         const saved = cacheGet(LOCATION_CACHE_KEY, LOCATION_CACHE_TTL)
         if (saved && isValidCoord(saved.lat, saved.lng)) {
           setError(null)
@@ -370,20 +377,18 @@ export default function useGeolocation() {
         setLoading(false)
         return
       }
-      // Other error — fall through to low-accuracy GPS
+      // Other GPS error — fall through to low-accuracy GPS attempt
     }
 
-    // --- Low-accuracy GPS fallback (if high-acc failed or returned poor result) ---
-    if (!bestCoords || classifyAccuracy(bestCoords.accuracy) === 'unusable') {
+    // --- Low-accuracy GPS fallback (only if high-acc failed completely) ---
+    if (!bestCoords) {
       try {
         const pos = await getGPSPosition(GPS_LOW)
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
         const acc = pos.coords.accuracy
         if (isValidCoord(lat, lng)) {
-          if (!bestCoords || acc < bestCoords.accuracy) {
-            bestCoords = { lat, lng, accuracy: acc, source: 'gps-low' }
-          }
+          bestCoords = { lat, lng, accuracy: acc, source: 'gps-low' }
         }
       } catch {}
     }
@@ -393,35 +398,20 @@ export default function useGeolocation() {
       return
     }
 
-    // --- IP-based fallback (only if GPS completely failed) ---
-    if (!bestCoords) {
-      const ipResult = await getLocationViaIP()
-      if (!ipResult) {
-        // Final fallback: cached location
-        const saved = cacheGet(LOCATION_CACHE_KEY, LOCATION_CACHE_TTL)
-        if (saved && isValidCoord(saved.lat, saved.lng)) {
-          setLocation({ lat: saved.lat, lng: saved.lng })
-          setAccuracy(null)
-          setLocationSource('saved')
-          setLocationStatus('low-accuracy')
-          lastAccuracyRef.current = null
-          const addrData = await reverseGeocode(saved.lat, saved.lng)
-          if (!abortRef.current) {
-            setAddress(addrData)
-            lastGeocodedLocRef.current = { lat: saved.lat, lng: saved.lng }
-          }
-          setLoading(false)
-          return
-        }
-        setError('Unable to detect your location. Try clicking the map to set it manually.')
-        setLocationStatus('error')
-        setLoading(false)
-        return
+    // --- Hard accuracy gate ---
+    // If the best GPS result we could get exceeds the threshold, reject it entirely.
+    // IP fallback is never auto-applied — it always exceeds ACCURACY_THRESHOLD_M (~5000m).
+    // Users should set their location manually instead.
+    if (!bestCoords || bestCoords.accuracy > ACCURACY_THRESHOLD_M) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug(
+          `[Location] Rejected — accuracy=${bestCoords?.accuracy ?? 'n/a'}m exceeds threshold of ${ACCURACY_THRESHOLD_M}m`
+        )
       }
-      bestCoords = ipResult
-    }
-
-    if (abortRef.current) {
+      lastAccuracyRef.current = bestCoords?.accuracy ?? null
+      setLocationStatus('unacceptable')
+      setAccuracy(bestCoords?.accuracy ?? null)
+      setLocationSource(bestCoords?.source ?? null)
       setLoading(false)
       return
     }
@@ -430,21 +420,17 @@ export default function useGeolocation() {
 
     if (process.env.NODE_ENV !== 'production') {
       console.debug(
-        `[Location] source=${source} lat=${lat} lng=${lng} acc=${acc}m quality=${classifyAccuracy(acc)}`
+        `[Location] Accepted — source=${source} lat=${lat} lng=${lng} acc=${acc}m quality=${classifyAccuracy(acc)}`
       )
     }
 
     // Persist successful GPS result to cache for future fallback
-    if (source !== 'ip') {
-      cacheSet(LOCATION_CACHE_KEY, { lat, lng }, LOCATION_CACHE_TTL)
-    }
+    cacheSet(LOCATION_CACHE_KEY, { lat, lng }, LOCATION_CACHE_TTL)
 
     await applyCoords(lat, lng, acc, source)
 
-    // Start live watch after getting initial position (GPS sources only)
-    if (source !== 'ip' && source !== 'saved') {
-      startWatch(acc)
-    }
+    // Start live watch after getting a valid position
+    startWatch(acc)
   }, [applyCoords, location, startWatch, stopWatch])
 
   const setManual = useCallback(async (lat, lng) => {

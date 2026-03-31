@@ -206,6 +206,19 @@ function LocationStatusPill({ locationStatus, accuracy, locationSource, onRetry 
       </div>
     )
   }
+  if (locationStatus === 'unacceptable') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+        <AlertCircle className="w-3 h-3" />
+        Accuracy too low to use
+        {onRetry && (
+          <button onClick={onRetry} className="underline font-medium ml-1">
+            Retry
+          </button>
+        )}
+      </div>
+    )
+  }
   if (locationStatus === 'denied') {
     return (
       <div className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400">

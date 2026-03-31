@@ -151,6 +151,12 @@ const RequestRow = memo(function RequestRow({ req, catColor, isFirst }) {
   )
 })
 
+// True for devices without touch (typical desktop/laptop)
+const isDesktopDevice = () =>
+  typeof navigator !== 'undefined' &&
+  navigator.maxTouchPoints === 0 &&
+  !('ontouchstart' in window)
+
 export default function NearbyHelp() {
   const { location, address, loading: locLoading, error: locError, detect, locationStatus, accuracy, locationSource } = useLocationCtx()
   const [allRequests, setAllRequests] = useState([])
@@ -162,9 +168,12 @@ export default function NearbyHelp() {
     setRefreshKey((k) => k + 1)
   }, [detect])
 
-  // Real-time Firestore subscription
+  // Accuracy was rejected — location is blocked
+  const locationBlocked = locationStatus === 'unacceptable'
+
+  // Real-time Firestore subscription — only when we have an accepted location
   useEffect(() => {
-    if (!location) return
+    if (!location || locationBlocked) return
     setLoadingReqs(true)
     const unsub = onSnapshot(
       collection(db, 'helpRequests'),
@@ -182,20 +191,20 @@ export default function NearbyHelp() {
       }
     )
     return unsub
-  }, [location, refreshKey])
+  }, [location, locationBlocked, refreshKey])
 
-  // Background refresh: re-trigger every 5 minutes to pick up distance changes
+  // Background refresh every 5 minutes
   useEffect(() => {
-    if (!location) return
+    if (!location || locationBlocked) return
     const id = setInterval(() => {
       setRefreshKey((k) => k + 1)
     }, BG_REFRESH_INTERVAL_MS)
     return () => clearInterval(id)
-  }, [location])
+  }, [location, locationBlocked])
 
   // Memoize nearby filtered+sorted requests with category priority weighting
   const requests = useMemo(() => {
-    if (!location || !allRequests.length) return []
+    if (!location || locationBlocked || !allRequests.length) return []
     return allRequests
       .filter((r) => {
         if (r.status === 'completed') return false
@@ -212,46 +221,84 @@ export default function NearbyHelp() {
         const pb = EMERGENCY_PRIORITY[b.category] ?? 0.3
         return (a.distance + pa) - (b.distance + pb)
       })
-  }, [allRequests, location])
+  }, [allRequests, location, locationBlocked])
 
   // Show skeleton while location is actively being detected
-  if (locLoading && !location) return <NearbyHelpSkeleton />
+  if (locLoading && !location && !locationBlocked) return <NearbyHelpSkeleton />
 
-  if (!location && !locLoading) {
+  // No location yet, or location was blocked due to poor accuracy
+  if (!location || locationBlocked) {
+    const isBlocked = locationBlocked
+    const isDesktop = isDesktopDevice()
+
     return (
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold text-gray-900 dark:text-white">Nearby Help Requests</h2>
         </div>
         <div className="flex flex-col items-center py-6 text-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+          <div className={clsx(
+            'w-11 h-11 rounded-2xl flex items-center justify-center',
+            isBlocked
+              ? 'bg-amber-50 dark:bg-amber-900/20'
+              : 'bg-primary-50 dark:bg-primary-900/20'
+          )}>
+            {isBlocked
+              ? <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              : <MapPin className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+            }
           </div>
+
           <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Share your location</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-              See help requests near you within {RADIUS_KM} km
-            </p>
+            {isBlocked ? (
+              <>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {isDesktop
+                    ? 'Location is not accurate on this device.'
+                    : 'Low accuracy detected.'}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-xs mx-auto">
+                  {isDesktop
+                    ? 'Please use a mobile device or enter your location manually for accurate results.'
+                    : 'Please retry or enter your location manually for better results.'}
+                </p>
+                {accuracy && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Detected accuracy: ±{Math.round(accuracy).toLocaleString()} m — too low to use.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Share your location</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  See help requests near you within {RADIUS_KM} km
+                </p>
+              </>
+            )}
           </div>
-          {locError && (
+
+          {locError && !isBlocked && (
             <div className="flex items-center gap-1.5 text-xs text-red-500 max-w-xs">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               {locError}
             </div>
           )}
+
           <button
             onClick={detect}
             disabled={locLoading}
             className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 active:scale-95 transition-transform"
           >
             {locLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-            {locLoading ? 'Detecting...' : 'Enable Location'}
+            {locLoading ? 'Detecting...' : isBlocked ? 'Retry Location' : 'Enable Location'}
           </button>
+
           <Link
             to="/map"
             className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
           >
-            Set location manually on map →
+            Set location manually on map
           </Link>
         </div>
       </div>
@@ -263,7 +310,7 @@ export default function NearbyHelp() {
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
           <h2 className="text-base font-bold text-gray-900 dark:text-white">Nearby Help Requests</h2>
-          {address && (
+          {address && locationStatus !== 'unacceptable' && (
             <div className="flex items-center gap-1 mt-0.5">
               <MapPin className="w-3 h-3 text-primary-500 shrink-0" />
               <span className="text-xs text-gray-400 dark:text-gray-500 truncate">
@@ -293,7 +340,7 @@ export default function NearbyHelp() {
         <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 border border-amber-100 dark:border-amber-800/30 mb-3">
           <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
           <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
-            Low accuracy detected. Results may not reflect your exact position.
+            Low accuracy detected. Please retry or enter your location manually for better results.
           </p>
           <button
             onClick={refresh}
