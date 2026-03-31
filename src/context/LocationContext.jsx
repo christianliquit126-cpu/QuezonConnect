@@ -16,24 +16,48 @@ export const LocationProvider = ({ children }) => {
   useEffect(() => {
     if (attempted.current) return
     attempted.current = true
+
     if (!navigator.geolocation) return
-    if (!navigator.permissions) return
-    navigator.permissions
-      .query({ name: 'geolocation' })
-      .then((status) => {
-        if (status.state === 'granted') {
-          geo.detect()
-        }
-        const handleChange = () => {
+
+    // If Permissions API is available, use it for a smarter auto-trigger
+    if (navigator.permissions) {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((status) => {
+          // Auto-detect if permission is already granted
           if (status.state === 'granted') {
             geo.detect()
           }
-        }
-        status.addEventListener('change', handleChange)
-        return () => status.removeEventListener('change', handleChange)
-      })
-      .catch(() => {})
-  }, [])
+
+          // Re-detect when permission changes (e.g. user toggles in browser settings)
+          const handleChange = () => {
+            if (status.state === 'granted') {
+              geo.detect()
+            }
+          }
+          status.addEventListener('change', handleChange)
+          return () => status.removeEventListener('change', handleChange)
+        })
+        .catch(() => {
+          // Permissions API blocked — fall through to passive detection only
+        })
+      return
+    }
+
+    // Fallback for browsers without Permissions API (some mobile browsers):
+    // Silently probe geolocation. If it resolves, the user has already granted
+    // permission and we apply the result. If it fails (denied/unavailable), ignore.
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        // Permission is granted — run the full detect flow
+        geo.detect()
+      },
+      () => {
+        // Denied or unavailable — do nothing; user can trigger manually
+      },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 }
+    )
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <LocationContext.Provider value={geo}>
