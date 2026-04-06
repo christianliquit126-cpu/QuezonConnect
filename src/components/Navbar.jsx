@@ -168,12 +168,12 @@ export default function Navbar() {
               </button>
               <input
                 type="search"
-                placeholder="Search..."
+                placeholder="Search resources..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearch}
                 aria-label="Search resources"
-                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-28"
+                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-36"
               />
               {search && (
                 <button

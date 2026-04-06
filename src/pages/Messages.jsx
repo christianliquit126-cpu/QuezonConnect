@@ -17,7 +17,7 @@ import {
   updateDoc,
   limit,
 } from 'firebase/firestore'
-import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns'
+import { format, formatDistanceToNow, isToday, isYesterday, isSameDay } from 'date-fns'
 import { Send, Search, ArrowLeft, Users, Loader2, MessageCircle } from 'lucide-react'
 import { createNotification } from '../services/notifications'
 
@@ -26,6 +26,13 @@ function formatMsgTime(date) {
   if (isToday(date)) return format(date, 'h:mm a')
   if (isYesterday(date)) return 'Yesterday'
   return format(date, 'MMM d')
+}
+
+function formatDateLabel(date) {
+  if (!date) return ''
+  if (isToday(date)) return 'Today'
+  if (isYesterday(date)) return 'Yesterday'
+  return format(date, 'MMMM d, yyyy')
 }
 
 function ChatBubble({ msg, isOwn, showAvatar, avatar, name }) {
@@ -130,15 +137,18 @@ export default function Messages() {
     setLoadingMsgs(true)
     const q = query(
       collection(db, 'chats', activeChat.chatId, 'messages'),
-      orderBy('timestamp', 'asc')
+      orderBy('timestamp', 'desc'),
+      limit(100)
     )
     const unsub = onSnapshot(q, (snap) => {
       setMessages(
-        snap.docs.map((d) => ({
-          msgId: d.id,
-          ...d.data(),
-          timestamp: d.data().timestamp?.toDate() || null,
-        }))
+        snap.docs
+          .map((d) => ({
+            msgId: d.id,
+            ...d.data(),
+            timestamp: d.data().timestamp?.toDate() || null,
+          }))
+          .reverse()
       )
       setLoadingMsgs(false)
     })
@@ -515,8 +525,19 @@ export default function Messages() {
                   {messageGroups.map((group, gi) => {
                     const isOwn = group[0].uid === currentUser?.uid
                     const other = getOtherParticipant(activeChat)
+                    const firstMsgDate = group[0].timestamp
+                    const prevGroup = messageGroups[gi - 1]
+                    const prevDate = prevGroup?.[prevGroup.length - 1]?.timestamp
+                    const showDateSep = firstMsgDate && (!prevDate || !isSameDay(firstMsgDate, prevDate))
                     return (
                       <div key={gi} className="mb-2">
+                        {showDateSep && (
+                          <div className="flex items-center justify-center my-3">
+                            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+                              {formatDateLabel(firstMsgDate)}
+                            </span>
+                          </div>
+                        )}
                         {group.map((msg, mi) => (
                           <ChatBubble
                             key={msg.msgId}

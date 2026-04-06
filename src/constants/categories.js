@@ -7,10 +7,13 @@ export const HELP_CATEGORIES = [
   'Clothing',
   'Utilities',
   'Community Events',
+  'Livelihood',
+  'Calamity Relief',
   'Other',
 ]
 
 export const POST_CATEGORIES = [
+  'General',
   'Food & Groceries',
   'Health & Medical',
   'School & Supplies',
@@ -19,11 +22,14 @@ export const POST_CATEGORIES = [
   'Clothing',
   'Utilities',
   'Community Events',
+  'Livelihood',
+  'Calamity Relief',
   'Other',
 ]
 
 export const FEED_FILTERS = [
   'All',
+  'General',
   'Food & Groceries',
   'Health & Medical',
   'School & Supplies',
@@ -32,4 +38,6 @@ export const FEED_FILTERS = [
   'Utilities',
   'Community Events',
   'Transportation',
+  'Livelihood',
+  'Calamity Relief',
 ]

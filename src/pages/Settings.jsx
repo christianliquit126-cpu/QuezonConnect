@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, updateDoc, getDoc } from 'firebase/firestore'
 import {
   User,
   MapPin,
@@ -112,23 +112,32 @@ export default function Settings() {
       const locationStr = form.barangay
         ? `${form.barangay}${form.city ? ', ' + form.city : ''}`
         : form.location
+      const locationStr2 = locationStr
+      const isQC = (() => {
+        const cityName = form.city?.toLowerCase() || ''
+        if (cityName.includes('quezon') || cityName.includes('qc')) return true
+        if (form.lat && form.lng) {
+          return form.lat >= 14.55 && form.lat <= 14.76 && form.lng >= 120.98 && form.lng <= 121.13
+        }
+        return false
+      })()
       await updateDoc(doc(db, 'users', currentUser.uid), {
         name: trimmedName,
-        location: locationStr,
+        location: locationStr2,
         barangay: form.barangay || '',
         city: form.city || '',
         lat: form.lat || null,
         lng: form.lng || null,
-        isQC: (() => {
-          const cityName = form.city?.toLowerCase() || ''
-          if (cityName.includes('quezon') || cityName.includes('qc')) return true
-          if (form.lat && form.lng) {
-            return form.lat >= 14.55 && form.lat <= 14.76 && form.lng >= 120.98 && form.lng <= 121.13
-          }
-          return false
-        })(),
+        isQC,
         bio: form.bio.trim(),
       })
+      const volSnap = await getDoc(doc(db, 'volunteers', currentUser.uid))
+      if (volSnap.exists()) {
+        await updateDoc(doc(db, 'volunteers', currentUser.uid), {
+          name: trimmedName,
+          location: locationStr2,
+        })
+      }
       await refreshProfile()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)

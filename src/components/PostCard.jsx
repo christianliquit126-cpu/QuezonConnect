@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Copy,
   CheckCheck,
+  LogIn,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -27,9 +28,11 @@ import {
   updateDoc,
   deleteDoc,
   increment,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { createNotification } from '../services/notifications'
+import { getThumbnailUrl } from '../services/cloudinary'
 
 const avatarFallback = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=100`
@@ -107,7 +110,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [reported, setReported] = useState(false)
   const [showReportPanel, setShowReportPanel] = useState(false)
   const [reportReason, setReportReason] = useState('')
+  const [reportDetail, setReportDetail] = useState('')
   const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const commentInputRef = useRef(null)
   const [saveError, setSaveError] = useState('')
   const [deleteError, setDeleteError] = useState('')
@@ -154,7 +159,11 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   }
 
   const handleLike = () => {
-    if (!currentUser) return
+    if (!currentUser) {
+      setShowLoginPrompt(true)
+      setTimeout(() => setShowLoginPrompt(false), 2500)
+      return
+    }
     onLike?.(post.postId)
     if (!liked && post.uid && post.uid !== currentUser.uid) {
       createNotification({
@@ -178,16 +187,19 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     setSubmitting(true)
     setCommentError('')
     try {
-      await addDoc(collection(db, 'posts', post.postId, 'comments'), {
+      const batch = writeBatch(db)
+      const commentRef = doc(collection(db, 'posts', post.postId, 'comments'))
+      batch.set(commentRef, {
         uid: currentUser.uid,
         userName: currentUser.name,
         userAvatar: currentUser.avatar || null,
         content: commentText.trim(),
         createdAt: serverTimestamp(),
       })
-      await updateDoc(doc(db, 'posts', post.postId), {
+      batch.update(doc(db, 'posts', post.postId), {
         commentCount: increment(1),
       })
+      await batch.commit()
       if (post.uid && post.uid !== currentUser.uid) {
         createNotification({
           recipientUid: post.uid,
@@ -210,10 +222,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const handleDeleteComment = async (commentId) => {
     if (!currentUser) return
     try {
-      await deleteDoc(doc(db, 'posts', post.postId, 'comments', commentId))
-      await updateDoc(doc(db, 'posts', post.postId), {
-        commentCount: increment(-1),
-      })
+      const batch = writeBatch(db)
+      batch.delete(doc(db, 'posts', post.postId, 'comments', commentId))
+      batch.update(doc(db, 'posts', post.postId), { commentCount: increment(-1) })
+      await batch.commit()
     } catch (err) {
       console.error('Failed to delete comment:', err)
     }
@@ -291,11 +303,13 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
         reportedByUid: currentUser.uid,
         reportedBy: currentUser.name,
         reason: reportReason,
+        detail: reportReason === 'Other' ? reportDetail.trim() : '',
         status: 'open',
         createdAt: serverTimestamp(),
       })
       setReported(true)
       setShowReportPanel(false)
+      setReportDetail('')
     } catch {}
     setReportSubmitting(false)
   }
@@ -466,7 +480,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
 
       {post.imageURL && !editing && (
         <img
-          src={post.imageURL}
+          src={getThumbnailUrl(post.imageURL) || post.imageURL}
           alt={`Post image by ${post.userName || 'community member'}`}
           className="w-full object-cover max-h-80"
           loading="lazy"
@@ -476,20 +490,28 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
 
       {/* Actions */}
       <div className="px-5 py-3 border-t border-gray-50 dark:border-gray-800 flex items-center gap-5">
-        <button
-          type="button"
-          onClick={handleLike}
-          aria-label={liked ? `Unlike post. ${likeCount} likes` : `Like post. ${likeCount} likes`}
-          aria-pressed={liked}
-          className={`flex items-center gap-1.5 text-sm transition-colors ${
-            liked
-              ? 'text-red-500'
-              : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
-          }`}
-        >
-          <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} aria-hidden="true" />
-          <span aria-hidden="true">{likeCount}</span>
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={handleLike}
+            aria-label={liked ? `Unlike post. ${likeCount} likes` : `Like post. ${likeCount} likes`}
+            aria-pressed={liked}
+            className={`flex items-center gap-1.5 text-sm transition-colors ${
+              liked
+                ? 'text-red-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
+            }`}
+          >
+            <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} aria-hidden="true" />
+            <span aria-hidden="true">{likeCount}</span>
+          </button>
+          {showLoginPrompt && (
+            <div className="absolute bottom-full left-0 mb-1.5 whitespace-nowrap bg-gray-900 dark:bg-gray-700 text-white text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg z-10">
+              <LogIn className="w-3 h-3" aria-hidden="true" />
+              Sign in to like posts
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleCommentToggle}
@@ -556,7 +578,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             {REPORT_REASONS.map((r) => (
               <button
                 key={r}
-                onClick={() => setReportReason(r)}
+                onClick={() => { setReportReason(r); if (r !== 'Other') setReportDetail('') }}
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   reportReason === r
                     ? 'bg-orange-500 text-white border-orange-500'
@@ -567,6 +589,16 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
               </button>
             ))}
           </div>
+          {reportReason === 'Other' && (
+            <textarea
+              value={reportDetail}
+              onChange={(e) => setReportDetail(e.target.value)}
+              placeholder="Please describe the issue..."
+              rows={2}
+              maxLength={200}
+              className="w-full mb-2 px-3 py-2 text-xs border border-orange-200 dark:border-orange-800 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none"
+            />
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={handleReportSubmit}
@@ -577,7 +609,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
               Submit Report
             </button>
             <button
-              onClick={() => { setShowReportPanel(false); setReportReason('') }}
+              onClick={() => { setShowReportPanel(false); setReportReason(''); setReportDetail('') }}
               className="text-xs px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               Cancel

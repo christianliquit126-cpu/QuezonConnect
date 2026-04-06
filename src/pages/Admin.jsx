@@ -39,6 +39,7 @@ import {
   Star,
   Edit2,
   Save,
+  Search,
 } from 'lucide-react'
 
 const TABS = [
@@ -132,6 +133,7 @@ function RequestsTab({ requests }) {
   const [statusError, setStatusError] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [reqSearch, setReqSearch] = useState('')
 
   const handleStatus = async (id, status) => {
     setStatusError('')
@@ -152,6 +154,14 @@ function RequestsTab({ requests }) {
     }
   }
 
+  const filteredRequests = reqSearch.trim()
+    ? requests.filter((r) =>
+        r.title?.toLowerCase().includes(reqSearch.toLowerCase()) ||
+        r.userName?.toLowerCase().includes(reqSearch.toLowerCase()) ||
+        r.category?.toLowerCase().includes(reqSearch.toLowerCase())
+      )
+    : requests
+
   return (
     <div className="space-y-3">
       {statusError && (
@@ -160,15 +170,27 @@ function RequestsTab({ requests }) {
       {deleteError && (
         <p className="text-sm text-red-600 dark:text-red-400 px-1">{deleteError}</p>
       )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="search"
+          placeholder="Search requests by title, user, or category..."
+          value={reqSearch}
+          onChange={(e) => setReqSearch(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
       <div className="card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <h3 className="font-semibold text-gray-900 dark:text-white">All Help Requests ({requests.length})</h3>
+        <h3 className="font-semibold text-gray-900 dark:text-white">
+          Help Requests ({filteredRequests.length}{reqSearch ? ` of ${requests.length}` : ''})
+        </h3>
       </div>
-      {requests.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-400 text-center">No help requests yet</p>
+      {filteredRequests.length === 0 ? (
+        <p className="px-5 py-8 text-sm text-gray-400 text-center">{reqSearch ? 'No matching requests.' : 'No help requests yet'}</p>
       ) : (
         <div className="divide-y divide-gray-50 dark:divide-gray-800">
-          {requests.map((r) => (
+          {filteredRequests.map((r) => (
             <div key={r.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{r.title}</p>
@@ -344,6 +366,7 @@ function UsersTab({ users }) {
   const [confirmBanId, setConfirmBanId] = useState(null)
   const [confirmAdminId, setConfirmAdminId] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [userSearch, setUserSearch] = useState('')
 
   const handleToggleAdmin = async (user) => {
     if (user.uid === currentUser.uid) return
@@ -370,7 +393,13 @@ function UsersTab({ users }) {
     }
   }
 
-  const activeUsers = users.filter((u) => u.role !== 'banned')
+  const allActive = users.filter((u) => u.role !== 'banned')
+  const activeUsers = userSearch.trim()
+    ? allActive.filter((u) =>
+        u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email?.toLowerCase().includes(userSearch.toLowerCase())
+      )
+    : allActive
   const bannedUsers = users.filter((u) => u.role === 'banned')
 
   return (
@@ -378,12 +407,24 @@ function UsersTab({ users }) {
       {actionError && (
         <p className="text-sm text-red-600 dark:text-red-400 px-1">{actionError}</p>
       )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="search"
+          placeholder="Search users by name or email..."
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Active Users ({activeUsers.length})</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            Active Users ({activeUsers.length}{userSearch ? ` of ${allActive.length}` : ''})
+          </h3>
         </div>
         {activeUsers.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-gray-400 text-center">No users yet</p>
+          <p className="px-5 py-8 text-sm text-gray-400 text-center">{userSearch ? 'No matching users.' : 'No users yet'}</p>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {activeUsers.map((u) => (
@@ -403,7 +444,17 @@ function UsersTab({ users }) {
                       <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">You</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {u.email}
+                    {u.createdAt && (
+                      <span className="ml-1.5 text-gray-300 dark:text-gray-600">
+                        &middot; Joined {formatDistanceToNow(
+                          u.createdAt?.toDate ? u.createdAt.toDate() : new Date(u.createdAt),
+                          { addSuffix: true }
+                        )}
+                      </span>
+                    )}
+                  </p>
                   {u.location && <p className="text-xs text-gray-400">{u.location}</p>}
                 </div>
                 {u.uid !== currentUser.uid && (

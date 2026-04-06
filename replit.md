@@ -279,6 +279,24 @@ kill 1   # restart to pick up env vars
 - **NotificationBell Escape key**: Pressing Escape now closes the notification dropdown.
 - **EmergencyQuickMode Escape key**: Pressing Escape now closes the emergency services modal.
 - **CreatePost error handling**: Post submission failures now show an inline error message instead of silently failing.
+- **PostCard comment batch write**: `handleComment` and `handleDeleteComment` now use `writeBatch` to atomically update both the comment subcollection and the `commentCount` counter on the post document.
+- **PostCard thumbnail URL**: Post feed images now load via `getThumbnailUrl()` (600px Cloudinary optimized) instead of the full original URL.
+- **PostCard login prompt**: Unauthenticated users who click Like now see a tooltip ("Sign in to like posts") with a LogIn icon instead of a silent no-op.
+- **PostCard report "Other" detail**: When "Other" is selected as a report reason, a textarea appears for freeform detail; the text is saved as `detail` in the `reports` doc.
+- **Messages message limit**: Chat messages query now uses `orderBy('timestamp', 'desc')` + `limit(100)` then reverses for display — prevents loading unbounded message history.
+- **Messages date separators**: Date divider pills (Today / Yesterday / full date) now appear between message groups when the day changes.
+- **Profile member-since date**: User profile cards now display a "Member since Month YYYY" line using `createdAt` from the Firestore user doc.
+- **Settings volunteer doc sync**: When a user saves their profile, if they have a volunteer document, `name` and `location` are also updated in `volunteers/{uid}`.
+- **NotificationBell Clear All**: Added a "Clear all" button that batch-deletes all notifications (not just marks them read).
+- **GiveHelp Help button**: The "Help" button on each open help request now navigates to `/messages?startChat=UID&name=…&avatar=…` to start a direct conversation with the requester.
+- **Navbar search placeholder**: Updated from "Search..." to "Search resources..." for clarity.
+- **ReportIncident cooldown**: After submitting an incident report, a 60-second localStorage-based cooldown prevents re-opening the form. A countdown badge ("Wait Xs") is shown above the button.
+- **GetHelp keyword search**: Added a text search field above the status/category filter pills to filter requests by title or description.
+- **SignUp password minimum**: Password minimum raised from 6 to 8 characters; validation message updated accordingly.
+- **SignUp terms notice**: Added "By creating an account you agree to our Terms of Service and Privacy Policy" below the submit button.
+- **Admin request search**: RequestsTab now has a search field filtering by title, username, or category with live count display.
+- **Admin user search**: UsersTab now has a search field filtering active users by name or email with live count display.
+- **Admin user join date**: Each user row in UsersTab now shows relative join date (from `createdAt`) next to the email.
 
 ## Dev Server
 - Host: 0.0.0.0, Port: 5000

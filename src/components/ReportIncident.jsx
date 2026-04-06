@@ -7,12 +7,16 @@ import { useAuth } from '../context/AuthContext'
 import { logEvent } from '../services/analytics'
 import { isConfigured } from '../firebase'
 
+const COOLDOWN_KEY = 'report_incident_last'
+const COOLDOWN_MS = 60 * 1000
+
 export default function ReportIncident() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', location: '' })
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [cooldownSecs, setCooldownSecs] = useState(0)
   const { location, address } = useLocationCtx()
   const { displayUser } = useAuth()
 
@@ -21,6 +25,18 @@ export default function ReportIncident() {
     : address?.city || ''
 
   const handleOpen = () => {
+    const last = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10)
+    const remaining = Math.ceil((last + COOLDOWN_MS - Date.now()) / 1000)
+    if (remaining > 0) {
+      setCooldownSecs(remaining)
+      const interval = setInterval(() => {
+        setCooldownSecs((s) => {
+          if (s <= 1) { clearInterval(interval); return 0 }
+          return s - 1
+        })
+      }, 1000)
+      return
+    }
     setOpen(true)
     setDone(false)
     setSubmitError('')
@@ -47,6 +63,7 @@ export default function ReportIncident() {
         status: 'open',
         createdAt: serverTimestamp(),
       })
+      localStorage.setItem(COOLDOWN_KEY, String(Date.now()))
       logEvent('incident_reported', { hasLocation: !!location })
       setDone(true)
       setTimeout(() => {
@@ -65,14 +82,22 @@ export default function ReportIncident() {
 
   return (
     <>
-      <button
-        onClick={handleOpen}
-        title="Report an incident"
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-1.5 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-red-300 hover:text-red-600 dark:hover:text-red-400 px-3 py-2 rounded-full shadow-md transition-colors active:scale-95"
-      >
-        <Flag className="w-3.5 h-3.5" />
-        Report Incident
-      </button>
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-1">
+        {cooldownSecs > 0 && (
+          <span className="text-xs text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-0.5 rounded-full shadow">
+            Wait {cooldownSecs}s
+          </span>
+        )}
+        <button
+          onClick={handleOpen}
+          title="Report an incident"
+          disabled={cooldownSecs > 0}
+          className="flex items-center gap-1.5 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-red-300 hover:text-red-600 dark:hover:text-red-400 px-3 py-2 rounded-full shadow-md transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Flag className="w-3.5 h-3.5" />
+          Report Incident
+        </button>
+      </div>
 
       {open && (
         <>

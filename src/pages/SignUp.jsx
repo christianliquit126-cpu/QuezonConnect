@@ -39,7 +39,7 @@ export default function SignUp() {
     e.preventDefault()
     setError('')
     if (!form.name.trim()) return setError('Please enter your full name.')
-    if (form.password.length < 6) return setError('Password must be at least 6 characters.')
+    if (form.password.length < 8) return setError('Password must be at least 8 characters.')
     if (form.password !== form.confirmPassword) return setError('Passwords do not match.')
     setLoading(true)
     try {
@@ -262,6 +262,16 @@ export default function SignUp() {
               {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-2">
+              By creating an account you agree to our{' '}
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                Terms of Service
+              </a>
+              {' '}and{' '}
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+                Privacy Policy
+              </a>.
+            </p>
           </form>
         </div>
 

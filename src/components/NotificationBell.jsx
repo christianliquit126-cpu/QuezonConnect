@@ -10,6 +10,7 @@ import {
   limit,
   onSnapshot,
   updateDoc,
+  deleteDoc,
   doc,
   writeBatch,
 } from 'firebase/firestore'
@@ -105,6 +106,13 @@ export default function NotificationBell() {
     await batch.commit()
   }
 
+  const clearAll = async () => {
+    if (!notifications.length) return
+    const batch = writeBatch(db)
+    notifications.forEach((n) => batch.delete(doc(db, 'notifications', n.id)))
+    await batch.commit()
+  }
+
   const handleClickNotification = async (n) => {
     if (!n.read) {
       await updateDoc(doc(db, 'notifications', n.id), { read: true })
@@ -145,14 +153,24 @@ export default function NotificationBell() {
                 </span>
               )}
             </h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-              >
-                Mark all read
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  className="text-xs text-red-500 dark:text-red-400 hover:underline"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (

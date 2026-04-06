@@ -27,6 +27,8 @@ import {
   Trash2,
   MessageCircle,
   AlertTriangle,
+  Search,
+  X,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
@@ -246,6 +248,7 @@ export default function GetHelp() {
   const [categoryFilter, setCategoryFilter] = useState(categoryParam || 'All')
   const [distanceFilter, setDistanceFilter] = useState(false)
   const [myRequestsOnly, setMyRequestsOnly] = useState(false)
+  const [keyword, setKeyword] = useState('')
   const [imageUrl, setImageUrl] = useState(null)
 
   const TITLE_MAX = 100
@@ -337,6 +340,12 @@ export default function GetHelp() {
     if (myRequestsOnly && currentUser) {
       result = result.filter((r) => r.uid === currentUser.uid)
     }
+    if (keyword.trim()) {
+      const kw = keyword.trim().toLowerCase()
+      result = result.filter((r) =>
+        r.title?.toLowerCase().includes(kw) || r.description?.toLowerCase().includes(kw)
+      )
+    }
     if (distanceFilter && location) {
       result = result
         .filter((r) => r.lat && r.lng)
@@ -354,7 +363,7 @@ export default function GetHelp() {
       })
     }
     return result
-  }, [requests, filter, categoryFilter, distanceFilter, myRequestsOnly, currentUser, location])
+  }, [requests, filter, categoryFilter, distanceFilter, myRequestsOnly, currentUser, location, keyword])
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -547,6 +556,29 @@ export default function GetHelp() {
           </form>
         </div>
       )}
+
+      {/* Keyword Search */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          placeholder="Search requests by title or description..."
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          aria-label="Search help requests by keyword"
+        />
+        {keyword && (
+          <button
+            type="button"
+            onClick={() => setKeyword('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label="Clear search"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
 
       {/* Status Filters */}
       <div className="space-y-2 mb-5">

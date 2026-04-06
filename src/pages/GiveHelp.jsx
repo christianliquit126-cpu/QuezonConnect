@@ -396,7 +396,7 @@ export default function GiveHelp() {
                   </div>
                 </div>
                 <Link
-                  to="/get-help"
+                  to={`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName || '')}&avatar=${encodeURIComponent(req.userAvatar || '')}`}
                   className="btn-primary text-xs shrink-0 px-3 py-1.5"
                 >
                   Help

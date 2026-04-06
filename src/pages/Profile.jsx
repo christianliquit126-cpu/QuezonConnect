@@ -19,8 +19,9 @@ import {
   AlertCircle,
   FileText,
   Settings,
+  CalendarDays,
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, format } from 'date-fns'
 import clsx from 'clsx'
 
 const STATUS_STYLES = {
@@ -166,6 +167,17 @@ export default function Profile() {
                 <span className="inline-flex items-center gap-1 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 px-2 py-0.5 rounded-full mt-1 font-medium">
                   Admin
                 </span>
+              )}
+              {displayUser?.createdAt && (
+                <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                  <CalendarDays className="w-3 h-3" />
+                  Member since {format(
+                    displayUser.createdAt?.toDate
+                      ? displayUser.createdAt.toDate()
+                      : new Date(displayUser.createdAt),
+                    'MMMM yyyy'
+                  )}
+                </div>
               )}
             </div>
           </div>
