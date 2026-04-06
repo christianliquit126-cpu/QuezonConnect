@@ -211,10 +211,11 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       ) : (
         currentUser && req.status !== 'completed' && (
           <button
+            type="button"
             onClick={() => onOfferHelp(req)}
             className="btn-secondary w-full text-sm flex items-center justify-center gap-1.5"
           >
-            <MessageCircle className="w-3.5 h-3.5" />
+            <MessageCircle className="w-3.5 h-3.5" aria-hidden="true" />
             Offer Help
           </button>
         )
@@ -366,6 +367,7 @@ export default function GetHelp() {
         </div>
         {currentUser && (
           <button
+            type="button"
             onClick={() => {
               if (!showForm && location && !form.location) {
                 const locStr = address?.barangay
@@ -375,9 +377,10 @@ export default function GetHelp() {
               }
               setShowForm(!showForm)
             }}
+            aria-expanded={showForm}
             className="btn-primary flex items-center gap-2"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" aria-hidden="true" />
             <span className="hidden sm:inline">Request Help</span>
           </button>
         )}
@@ -388,17 +391,22 @@ export default function GetHelp() {
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
             Submit a Help Request
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="gh-title" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                   Title
                 </label>
-                <span className={`text-xs ${form.title.length >= TITLE_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                <span
+                  id="gh-title-counter"
+                  className={`text-xs ${form.title.length >= TITLE_MAX ? 'text-red-500' : 'text-gray-400'}`}
+                  aria-live="polite"
+                >
                   {form.title.length}/{TITLE_MAX}
                 </span>
               </div>
               <input
+                id="gh-title"
                 type="text"
                 required
                 maxLength={TITLE_MAX}
@@ -406,18 +414,24 @@ export default function GetHelp() {
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder="Brief summary of what you need"
                 className="input-field"
+                aria-describedby="gh-title-counter"
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="gh-desc" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                   Description
                 </label>
-                <span className={`text-xs ${form.description.length >= DESC_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                <span
+                  id="gh-desc-counter"
+                  className={`text-xs ${form.description.length >= DESC_MAX ? 'text-red-500' : 'text-gray-400'}`}
+                  aria-live="polite"
+                >
                   {form.description.length}/{DESC_MAX}
                 </span>
               </div>
               <textarea
+                id="gh-desc"
                 required
                 maxLength={DESC_MAX}
                 value={form.description}
@@ -425,14 +439,16 @@ export default function GetHelp() {
                 placeholder="Describe your situation in detail..."
                 rows={4}
                 className="input-field resize-none"
+                aria-describedby="gh-desc-counter"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="gh-category" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Category
                 </label>
                 <select
+                  id="gh-category"
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                   className="input-field"
@@ -443,10 +459,11 @@ export default function GetHelp() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="gh-urgency" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Urgency
                 </label>
                 <select
+                  id="gh-urgency"
                   value={form.urgency}
                   onChange={(e) => setForm((f) => ({ ...f, urgency: e.target.value }))}
                   className="input-field"
@@ -457,11 +474,12 @@ export default function GetHelp() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="gh-location" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Location
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="gh-location"
                     type="text"
                     value={form.location}
                     onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
@@ -472,13 +490,13 @@ export default function GetHelp() {
                     type="button"
                     onClick={useMyLocation}
                     disabled={locLoading}
-                    title="Use my location"
+                    aria-label={locLoading ? 'Detecting location...' : 'Use my current location'}
                     className="shrink-0 p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-60"
                   >
                     {locLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     ) : (
-                      <Navigation className="w-4 h-4" />
+                      <Navigation className="w-4 h-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
@@ -504,8 +522,8 @@ export default function GetHelp() {
               )}
             </div>
             {submitError && (
-              <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                 {submitError}
               </p>
             )}

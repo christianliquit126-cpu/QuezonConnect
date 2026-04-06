@@ -98,30 +98,50 @@ const HOTLINES = [
 const CATEGORIES = ['All', 'Food & Groceries', 'Health & Medical', 'School & Supplies', 'Transportation', 'Shelter & Housing']
 
 function DetailModal({ resource, onClose }) {
+  const closeRef = React.useRef(null)
+
+  React.useEffect(() => {
+    if (!resource) return
+    closeRef.current?.focus()
+    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [resource, onClose])
+
   if (!resource) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+      aria-hidden="true"
+    >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resource-modal-title"
         className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{resource.title}</h2>
+            <h2 id="resource-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">{resource.title}</h2>
             <span className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-2 py-0.5 rounded-full mt-1 inline-block">
               {resource.category}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1 text-sm text-yellow-500 font-semibold">
-              <Star className="w-4 h-4 fill-current" />
+            <div className="flex items-center gap-1 text-sm text-yellow-500 font-semibold" aria-label={`Rating: ${typeof resource.rating === 'number' ? resource.rating.toFixed(1) : resource.rating}`}>
+              <Star className="w-4 h-4 fill-current" aria-hidden="true" />
               {typeof resource.rating === 'number' ? resource.rating.toFixed(1) : resource.rating}
             </div>
             <button
+              ref={closeRef}
+              type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

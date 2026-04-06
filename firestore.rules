@@ -26,8 +26,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId)
-        // Prevent role escalation on create — only allow 'user' role on self-create
-        && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+        // Prevent role escalation on create — only allow safe initial roles
+        && (!('role' in request.resource.data) || request.resource.data.role in ['user', 'member']);
       allow update: if (isOwner(userId) && !affectsRole()) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -91,8 +91,11 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && request.resource.data.participants.hasAny([request.auth.uid])
         && request.resource.data.participants.size() == 2;
+      // Participants may only update safe metadata fields, not the participants list itself
       allow update: if isAuth()
-        && resource.data.participants.hasAny([request.auth.uid]);
+        && resource.data.participants.hasAny([request.auth.uid])
+        && !('participants' in request.resource.data
+              && request.resource.data.participants != resource.data.participants);
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
@@ -136,8 +139,11 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && volId == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
-      allow update: if (isOwner(resource.data.uid) && volId == request.auth.uid)
-        || isAdmin();
+      // Prevent uid field from being changed on update
+      allow update: if ((isOwner(resource.data.uid) && volId == request.auth.uid)
+        || isAdmin())
+        && (!('uid' in request.resource.data)
+            || request.resource.data.uid == resource.data.uid);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
   }

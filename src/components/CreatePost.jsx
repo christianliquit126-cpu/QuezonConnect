@@ -3,11 +3,11 @@ import { X, Loader2 } from 'lucide-react'
 import ImageUpload from './ImageUpload'
 import { POST_CATEGORIES as CATEGORIES } from '../constants/categories'
 
-const MAX_CHARS = 500
+const MAX_CHARS = 1000
 
 export default function CreatePost({ currentUser, onSubmit }) {
   const [content, setContent] = useState('')
-  const [category, setCategory] = useState('Other')
+  const [category, setCategory] = useState('General')
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -30,7 +30,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
     try {
       await onSubmit?.({ content, category, imageURL: imageUrl || null })
       setContent('')
-      setCategory('Other')
+      setCategory('General')
       setImageUrl(null)
       setExpanded(false)
     } catch {
@@ -48,7 +48,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
   }
 
   const remaining = MAX_CHARS - content.length
-  const isNearLimit = remaining <= 100
+  const isNearLimit = remaining <= 150
   const isOverLimit = remaining < 0
 
   return (
@@ -64,13 +64,15 @@ export default function CreatePost({ currentUser, onSubmit }) {
         <div className="flex-1 min-w-0">
           {!expanded ? (
             <button
+              type="button"
               onClick={() => setExpanded(true)}
               className="w-full text-left px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-400 hover:border-primary-300 dark:hover:border-primary-700 transition-colors"
+              aria-label="Write a post"
             >
               Share something with the community...
             </button>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-3" noValidate>
               <div className="relative">
                 <textarea
                   autoFocus
@@ -79,17 +81,19 @@ export default function CreatePost({ currentUser, onSubmit }) {
                   onKeyDown={handleKeyDown}
                   placeholder="Share something with the community... (Ctrl+Enter to post)"
                   rows={3}
+                  aria-label="Post content"
+                  aria-describedby="char-counter"
                   className={`input-field resize-none ${isOverLimit ? 'ring-2 ring-red-400 border-red-400 focus:ring-red-400' : ''}`}
                 />
-                {isNearLimit && (
-                  <span
-                    className={`absolute bottom-2 right-3 text-xs font-medium ${
-                      isOverLimit ? 'text-red-500' : 'text-amber-500'
-                    }`}
-                  >
-                    {remaining}
-                  </span>
-                )}
+                <span
+                  id="char-counter"
+                  className={`absolute bottom-2 right-3 text-xs font-medium ${
+                    isOverLimit ? 'text-red-500' : isNearLimit ? 'text-amber-500' : 'text-gray-400'
+                  }`}
+                  aria-live="polite"
+                >
+                  {remaining}
+                </span>
               </div>
 
               {imageUrl && (
@@ -101,7 +105,9 @@ export default function CreatePost({ currentUser, onSubmit }) {
 
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
+                  <label htmlFor="post-category" className="sr-only">Category</label>
                   <select
+                    id="post-category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="input-field py-1.5 text-xs w-auto"
@@ -130,11 +136,11 @@ export default function CreatePost({ currentUser, onSubmit }) {
                     disabled={!content.trim() || loading || isOverLimit}
                     className="btn-primary text-sm disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                     {loading ? 'Posting...' : 'Post'}
                   </button>
                   {error && (
-                    <span className="text-xs text-red-500">{error}</span>
+                    <span className="text-xs text-red-500" role="alert">{error}</span>
                   )}
                 </div>
               </div>

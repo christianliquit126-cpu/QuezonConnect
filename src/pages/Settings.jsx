@@ -176,7 +176,7 @@ export default function Settings() {
                 onClick={() => !avatarUploading && fileInputRef.current?.click()}
                 disabled={avatarUploading}
                 className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary-600 hover:bg-primary-700 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-60"
-                title="Change photo"
+                aria-label={avatarUploading ? 'Uploading photo...' : 'Change profile photo'}
               >
                 {avatarUploading ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -219,13 +219,14 @@ export default function Settings() {
 
         {/* Display Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <label htmlFor="settings-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             <span className="flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5" />
+              <User className="w-3.5 h-3.5" aria-hidden="true" />
               Display Name
             </span>
           </label>
           <input
+            id="settings-name"
             type="text"
             value={form.name}
             onChange={(e) => {
@@ -234,6 +235,7 @@ export default function Settings() {
             }}
             className={`input-field ${nameError ? 'border-red-400 focus:ring-red-400' : ''}`}
             placeholder="Your full name"
+            autoComplete="name"
           />
           {nameError && (
             <p className="text-xs text-red-500 mt-1">{nameError}</p>
@@ -260,13 +262,14 @@ export default function Settings() {
 
         {/* Bio */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <label htmlFor="settings-bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             <span className="flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5" aria-hidden="true" />
               About / Bio
             </span>
           </label>
           <textarea
+            id="settings-bio"
             value={form.bio}
             onChange={(e) => {
               if (e.target.value.length <= 200) {
@@ -276,22 +279,28 @@ export default function Settings() {
             className="input-field resize-none"
             rows={3}
             placeholder="Tell the community a little about yourself…"
+            aria-describedby="bio-counter"
           />
-          <p className={`text-xs mt-1 text-right ${form.bio.length >= 190 ? 'text-red-500' : form.bio.length >= 160 ? 'text-amber-500' : 'text-gray-400'}`}>
+          <p
+            id="bio-counter"
+            className={`text-xs mt-1 text-right ${form.bio.length >= 190 ? 'text-red-500' : form.bio.length >= 160 ? 'text-amber-500' : 'text-gray-400'}`}
+            aria-live="polite"
+          >
             {form.bio.length}/200
           </p>
         </div>
 
         {/* Barangay / Location */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <label htmlFor="settings-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             <span className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" />
+              <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
               Barangay / Area
             </span>
           </label>
           <div className="flex items-center gap-2">
             <input
+              id="settings-location"
               type="text"
               value={form.barangay || form.location}
               onChange={(e) =>
@@ -303,14 +312,16 @@ export default function Settings() {
               }
               className="input-field"
               placeholder="e.g. Batasan Hills, Quezon City"
+              autoComplete="street-address"
             />
             <button
               type="button"
               onClick={() => setShowMapPicker((v) => !v)}
               className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 shrink-0 transition-colors"
-              title="Pick on map"
+              aria-label={showMapPicker ? 'Close map picker' : 'Pick location on map'}
+              aria-expanded={showMapPicker}
             >
-              <Map className="w-4 h-4" />
+              <Map className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
           {locationDisplay && (

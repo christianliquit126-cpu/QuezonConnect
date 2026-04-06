@@ -91,6 +91,7 @@ export default function Messages() {
   const [loadingChats, setLoadingChats] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
+  const [sendError, setSendError] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const activeChatRef = useRef(null)
@@ -238,6 +239,7 @@ export default function Messages() {
     const text = input.trim()
     if (!text || !activeChat || text.length > MSG_MAX) return
     setInput('')
+    setSendError('')
     try {
       const otherId = activeChat.participants?.find((p) => p !== currentUser.uid)
       await addDoc(collection(db, 'chats', activeChat.chatId, 'messages'), {
@@ -256,12 +258,14 @@ export default function Messages() {
           type: 'message',
           message: `${displayUser.name}: ${text.length > 60 ? text.slice(0, 60) + '…' : text}`,
           link: '/messages',
+          senderUid: currentUser.uid,
           senderName: displayUser.name,
-          senderAvatar: displayUser.avatar,
+          senderAvatar: displayUser.avatar || null,
         })
       }
     } catch {
       setInput(text)
+      setSendError('Failed to send message. Please try again.')
     }
   }
 
@@ -533,8 +537,11 @@ export default function Messages() {
 
             {/* Input */}
             <div className="border-t border-gray-100 dark:border-gray-800 shrink-0">
+              {sendError && (
+                <p className="px-4 pt-2 text-xs text-red-500" role="alert">{sendError}</p>
+              )}
               {input.length >= MSG_MAX * 0.9 && (
-                <p className={`px-4 pt-2 text-xs text-right ${input.length >= MSG_MAX ? 'text-red-500' : 'text-amber-500'}`}>
+                <p className={`px-4 pt-2 text-xs text-right ${input.length >= MSG_MAX ? 'text-red-500' : 'text-amber-500'}`} aria-live="polite">
                   {MSG_MAX - input.length} characters remaining
                 </p>
               )}
@@ -546,17 +553,19 @@ export default function Messages() {
                   ref={inputRef}
                   type="text"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => { setInput(e.target.value); if (sendError) setSendError('') }}
                   maxLength={MSG_MAX}
                   placeholder="Type a message... (Enter to send)"
+                  aria-label="Message"
                   className={`input-field flex-1 ${input.length >= MSG_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || input.length > MSG_MAX}
+                  aria-label="Send message"
                   className="w-9 h-9 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4" aria-hidden="true" />
                 </button>
               </form>
             </div>

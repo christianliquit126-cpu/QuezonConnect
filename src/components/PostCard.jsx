@@ -66,19 +66,25 @@ function PostMenu({ onEdit, onDelete, onClose }) {
     <div
       ref={ref}
       className="absolute right-0 top-8 z-20 w-36 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 overflow-hidden"
+      role="menu"
+      aria-label="Post options"
     >
       <button
+        type="button"
         onClick={onEdit}
+        role="menuitem"
         className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
       >
-        <Pencil className="w-3.5 h-3.5" />
+        <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
         Edit post
       </button>
       <button
+        type="button"
         onClick={onDelete}
+        role="menuitem"
         className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
       >
-        <Trash2 className="w-3.5 h-3.5" />
+        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
         Delete post
       </button>
     </div>
@@ -105,6 +111,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const commentInputRef = useRef(null)
   const [saveError, setSaveError] = useState('')
   const [deleteError, setDeleteError] = useState('')
+  const [commentError, setCommentError] = useState('')
 
   const isOwner = currentUser?.uid === post.uid
   const canControl = isOwner || isAdmin
@@ -155,8 +162,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
         type: 'like',
         message: `${currentUser.name} liked your post.`,
         link: '/',
+        senderUid: currentUser.uid,
         senderName: currentUser.name,
-        senderAvatar: currentUser.avatar,
+        senderAvatar: currentUser.avatar || null,
       })
     }
   }
@@ -168,11 +176,12 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     if (!commentText.trim() || !currentUser) return
     if (commentText.length > COMMENT_MAX) return
     setSubmitting(true)
+    setCommentError('')
     try {
       await addDoc(collection(db, 'posts', post.postId, 'comments'), {
         uid: currentUser.uid,
         userName: currentUser.name,
-        userAvatar: currentUser.avatar,
+        userAvatar: currentUser.avatar || null,
         content: commentText.trim(),
         createdAt: serverTimestamp(),
       })
@@ -185,13 +194,14 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           type: 'comment',
           message: `${currentUser.name} commented on your post.`,
           link: '/',
+          senderUid: currentUser.uid,
           senderName: currentUser.name,
-          senderAvatar: currentUser.avatar,
+          senderAvatar: currentUser.avatar || null,
         })
       }
       setCommentText('')
     } catch {
-      // comment failed — keep text so user can retry
+      setCommentError('Failed to post comment. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -356,10 +366,14 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
           {canControl && (
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Post options"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
                 className="p-1 rounded-lg text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
-                <MoreHorizontal className="w-4 h-4" />
+                <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
               </button>
               {menuOpen && (
                 <PostMenu
@@ -463,40 +477,48 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       {/* Actions */}
       <div className="px-5 py-3 border-t border-gray-50 dark:border-gray-800 flex items-center gap-5">
         <button
+          type="button"
           onClick={handleLike}
+          aria-label={liked ? `Unlike post. ${likeCount} likes` : `Like post. ${likeCount} likes`}
+          aria-pressed={liked}
           className={`flex items-center gap-1.5 text-sm transition-colors ${
             liked
               ? 'text-red-500'
               : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
           }`}
         >
-          <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
-          <span>{likeCount}</span>
+          <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} aria-hidden="true" />
+          <span aria-hidden="true">{likeCount}</span>
         </button>
         <button
+          type="button"
           onClick={handleCommentToggle}
+          aria-label={`${showComments ? 'Hide' : 'Show'} comments. ${post.commentCount || 0} comments`}
+          aria-expanded={showComments}
           className={`flex items-center gap-1.5 text-sm transition-colors ${
             showComments
               ? 'text-primary-600 dark:text-primary-400'
               : 'text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400'
           }`}
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>{post.commentCount || 0}</span>
+          <MessageCircle className="w-4 h-4" aria-hidden="true" />
+          <span aria-hidden="true">{Math.max(0, post.commentCount || 0)}</span>
         </button>
 
         <div className="flex items-center gap-3 ml-auto">
           {canReport && !reported && (
             <button
+              type="button"
               onClick={() => setShowReportPanel((v) => !v)}
-              title="Report post"
+              aria-label={showReportPanel ? 'Close report panel' : 'Report this post'}
+              aria-expanded={showReportPanel}
               className={`flex items-center gap-1 text-sm transition-colors ${
                 showReportPanel
                   ? 'text-orange-500'
                   : 'text-gray-400 hover:text-orange-500 dark:hover:text-orange-400'
               }`}
             >
-              <Flag className="w-3.5 h-3.5" />
+              <Flag className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
           {canReport && reported && (
@@ -506,7 +528,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             </span>
           )}
           <button
+            type="button"
             onClick={handleShare}
+            aria-label={copied ? 'Link copied' : 'Share post'}
             className={`flex items-center gap-1.5 text-sm transition-colors ${
               copied
                 ? 'text-green-500'
@@ -595,11 +619,12 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                   </div>
                   {(currentUser?.uid === c.uid || isAdmin) && (
                     <button
+                      type="button"
                       onClick={() => handleDeleteComment(c.commentId)}
                       className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
-                      title="Delete comment"
+                      aria-label="Delete comment"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3 h-3" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -614,7 +639,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             <form onSubmit={handleComment} className="flex gap-2.5">
               <img
                 src={currentUser.avatar || avatarFallback(currentUser.name)}
-                alt="You"
+                alt=""
                 className="w-7 h-7 rounded-full shrink-0 mt-0.5 object-cover"
                 onError={(e) => { e.currentTarget.src = avatarFallback(currentUser.name) }}
               />
@@ -624,27 +649,32 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                     ref={commentInputRef}
                     type="text"
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
+                    onChange={(e) => { setCommentText(e.target.value); setCommentError('') }}
                     maxLength={COMMENT_MAX}
                     placeholder="Write a comment..."
+                    aria-label="Write a comment"
                     className={`input-field py-1.5 text-xs flex-1 ${commentText.length >= COMMENT_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
                   />
                   <button
                     type="submit"
                     disabled={!commentText.trim() || submitting || commentText.length > COMMENT_MAX}
                     className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0"
+                    aria-label="Post comment"
                   >
                     {submitting ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
                     ) : (
                       'Post'
                     )}
                   </button>
                 </div>
                 {commentText.length >= COMMENT_MAX * 0.8 && (
-                  <p className={`text-xs text-right ${commentText.length >= COMMENT_MAX ? 'text-red-500' : 'text-amber-500'}`}>
+                  <p className={`text-xs text-right ${commentText.length >= COMMENT_MAX ? 'text-red-500' : 'text-amber-500'}`} aria-live="polite">
                     {COMMENT_MAX - commentText.length} remaining
                   </p>
+                )}
+                {commentError && (
+                  <p className="text-xs text-red-500" role="alert">{commentError}</p>
                 )}
               </div>
             </form>

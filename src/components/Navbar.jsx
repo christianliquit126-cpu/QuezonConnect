@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle,
-  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map, LogOut
+  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map, LogOut, Loader2
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -56,28 +56,50 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const handleLogout = async () => {
+    if (loggingOut) return
     setProfileOpen(false)
-    await logout()
-    navigate('/login')
+    setMobileOpen(false)
+    setLoggingOut(true)
+    try {
+      await logout()
+      navigate('/login')
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   const [search, setSearch] = useState('')
   const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
   const dropdownRef = useRef(null)
 
-  useEffect(() => setMobileOpen(false), [location.pathname])
-  useEffect(() => setProfileOpen(false), [location.pathname])
+  // Close both menus on route change
+  useEffect(() => {
+    setMobileOpen(false)
+    setProfileOpen(false)
+  }, [location.pathname])
 
+  // Close profile dropdown on outside click and Escape key
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setProfileOpen(false)
       }
     }
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setProfileOpen(false)
+        setMobileOpen(false)
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   const isActive = (path) => {
@@ -99,12 +121,12 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+    <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800" role="navigation" aria-label="Main navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo.png" alt="QC Community Help Support" className="h-9 w-9 object-contain" />
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="QC Community — home">
+            <img src="/logo.png" alt="" className="h-9 w-9 object-contain" aria-hidden="true" />
             <span className="font-bold text-gray-900 dark:text-white text-lg">
               QC <span className="text-primary-600">Community</span>
             </span>
@@ -116,6 +138,7 @@ export default function Navbar() {
               <Link
                 key={to}
                 to={to}
+                aria-current={isActive(to) ? 'page' : undefined}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive(to)
                     ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
@@ -130,42 +153,48 @@ export default function Navbar() {
           {/* Right side */}
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5">
+            <div
+              role="search"
+              className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5"
+            >
               <button
                 type="button"
                 onClick={submitSearch}
                 className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors shrink-0"
-                aria-label="Search"
+                aria-label="Submit search"
                 tabIndex={-1}
               >
-                <Search className="w-4 h-4" />
+                <Search className="w-4 h-4" aria-hidden="true" />
               </button>
               <input
-                type="text"
+                type="search"
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearch}
+                aria-label="Search resources"
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-28"
               />
               {search && (
                 <button
+                  type="button"
                   onClick={() => setSearch('')}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   aria-label="Clear search"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
 
             {/* Theme toggle */}
             <button
+              type="button"
               onClick={toggleTheme}
               className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Toggle theme"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {theme === 'dark' ? <Sun className="w-4 h-4" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
             </button>
 
             {isLoggedIn ? (
@@ -174,11 +203,11 @@ export default function Navbar() {
                 <Link
                   to="/messages"
                   className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  aria-label="Messages"
+                  aria-label={unreadMessages > 0 ? `Messages — ${unreadMessages} unread` : 'Messages'}
                 >
-                  <MessageCircle className="w-5 h-5" />
+                  <MessageCircle className="w-5 h-5" aria-hidden="true" />
                   {unreadMessages > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5">
+                    <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5" aria-hidden="true">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
                     </span>
                   )}
@@ -189,56 +218,71 @@ export default function Navbar() {
 
                 {/* Get Help CTA */}
                 <Link to="/get-help" className="hidden sm:flex btn-primary text-sm items-center gap-1.5">
-                  <HelpCircle className="w-4 h-4" />
+                  <HelpCircle className="w-4 h-4" aria-hidden="true" />
                   Get Help
                 </Link>
 
                 {/* Profile dropdown */}
                 <div className="relative" ref={dropdownRef}>
                   <button
+                    type="button"
                     onClick={() => setProfileOpen(!profileOpen)}
                     className="flex items-center p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    aria-label={`Account menu for ${displayUser?.name || 'your account'}`}
+                    aria-expanded={profileOpen}
+                    aria-haspopup="menu"
                   >
                     <img
                       src={displayUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100`}
-                      alt={displayUser?.name}
+                      alt=""
                       className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
                       onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100` }}
                     />
                   </button>
 
                   {profileOpen && (
-                    <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 z-50">
-                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                    <div
+                      className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 z-50"
+                      role="menu"
+                      aria-label="Account options"
+                    >
+                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800" role="none">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{displayUser?.name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{displayUser?.email}</p>
                       </div>
                       <Link
                         to="/profile"
+                        role="menuitem"
                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       >
-                        <User className="w-4 h-4" /> Profile
+                        <User className="w-4 h-4" aria-hidden="true" /> Profile
                       </Link>
                       <Link
                         to="/settings"
+                        role="menuitem"
                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                       >
-                        <Settings className="w-4 h-4" /> Settings
+                        <Settings className="w-4 h-4" aria-hidden="true" /> Settings
                       </Link>
                       {isAdmin && (
                         <Link
                           to="/admin"
+                          role="menuitem"
                           className="flex items-center gap-2 px-4 py-2 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                         >
-                          <Shield className="w-4 h-4" /> Admin Panel
+                          <Shield className="w-4 h-4" aria-hidden="true" /> Admin Panel
                         </Link>
                       )}
                       <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
                         <button
+                          type="button"
                           onClick={handleLogout}
-                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          disabled={loggingOut}
+                          role="menuitem"
+                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60"
                         >
-                          <LogOut className="w-4 h-4" /> Sign Out
+                          {loggingOut ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <LogOut className="w-4 h-4" aria-hidden="true" />}
+                          {loggingOut ? 'Signing out…' : 'Sign Out'}
                         </button>
                       </div>
                     </div>
@@ -261,12 +305,14 @@ export default function Navbar() {
 
             {/* Mobile menu toggle */}
             <button
+              type="button"
               className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileOpen}
+              aria-controls="mobile-menu"
             >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
             </button>
           </div>
         </div>
@@ -274,18 +320,19 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 py-3 space-y-1">
+        <div id="mobile-menu" className="md:hidden bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 py-3 space-y-1">
           {navLinks.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
+              aria-current={isActive(to) ? 'page' : undefined}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive(to)
                   ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-4 h-4" aria-hidden="true" />
               {label}
             </Link>
           ))}
@@ -296,10 +343,10 @@ export default function Navbar() {
                 className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 <span className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" /> Messages
+                  <MessageCircle className="w-4 h-4" aria-hidden="true" /> Messages
                 </span>
                 {unreadMessages > 0 && (
-                  <span className="min-w-[1.25rem] h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-1">
+                  <span className="min-w-[1.25rem] h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-1" aria-label={`${unreadMessages} unread`}>
                     {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
@@ -308,28 +355,31 @@ export default function Navbar() {
                 to="/profile"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
-                <User className="w-4 h-4" /> Profile
+                <User className="w-4 h-4" aria-hidden="true" /> Profile
               </Link>
               <Link
                 to="/settings"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
-                <Settings className="w-4 h-4" /> Settings
+                <Settings className="w-4 h-4" aria-hidden="true" /> Settings
               </Link>
               {isAdmin && (
                 <Link
                   to="/admin"
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20"
                 >
-                  <Shield className="w-4 h-4" /> Admin Panel
+                  <Shield className="w-4 h-4" aria-hidden="true" /> Admin Panel
                 </Link>
               )}
               <div className="border-t border-gray-100 dark:border-gray-800 mt-1 pt-1">
                 <button
+                  type="button"
                   onClick={handleLogout}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  disabled={loggingOut}
+                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60"
                 >
-                  <LogOut className="w-4 h-4" /> Sign Out
+                  {loggingOut ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <LogOut className="w-4 h-4" aria-hidden="true" />}
+                  {loggingOut ? 'Signing out…' : 'Sign Out'}
                 </button>
               </div>
             </>
