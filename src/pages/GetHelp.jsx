@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, memo } from 'react'
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLocationCtx } from '../context/LocationContext'
 import { db } from '../firebase'
+import useDebounce from '../hooks/useDebounce'
+import usePageTitle from '../hooks/usePageTitle'
 import {
   collection,
   addDoc,
@@ -428,6 +430,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
 })
 
 export default function GetHelp() {
+  usePageTitle('Get Help')
   const { displayUser, currentUser } = useAuth()
   const { location, address, detect, loading: locLoading } = useLocationCtx()
   const navigate = useNavigate()
@@ -443,15 +446,20 @@ export default function GetHelp() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [successMsg, setSuccessMsg] = useState(false)
   const routerLocation = useLocation()
   const categoryParam = new URLSearchParams(routerLocation.search).get('category')
   const [filter, setFilter] = useState('All')
   const [categoryFilter, setCategoryFilter] = useState(categoryParam || 'All')
+  const [urgencyFilter, setUrgencyFilter] = useState('All')
+  const [sortBy, setSortBy] = useState('urgency')
   const [distanceFilter, setDistanceFilter] = useState(false)
   const [myRequestsOnly, setMyRequestsOnly] = useState(false)
   const [keyword, setKeyword] = useState('')
+  const debouncedKeyword = useDebounce(keyword, 300)
   const [imageUrl, setImageUrl] = useState(null)
   const [displayLimit, setDisplayLimit] = useState(20)
+  const titleInputRef = useRef(null)
 
   const TITLE_MAX = 100
   const DESC_MAX = 500
@@ -521,6 +529,8 @@ export default function GetHelp() {
       })
       setImageUrl(null)
       setShowForm(false)
+      setSuccessMsg(true)
+      setTimeout(() => setSuccessMsg(false), 5000)
     } catch {
       setSubmitError('Failed to submit your request. Please check your connection and try again.')
     } finally {
@@ -534,7 +544,25 @@ export default function GetHelp() {
 
   useEffect(() => {
     setDisplayLimit(20)
-  }, [filter, categoryFilter, myRequestsOnly, keyword, distanceFilter])
+  }, [filter, categoryFilter, urgencyFilter, myRequestsOnly, debouncedKeyword, distanceFilter, sortBy])
+
+  useEffect(() => {
+    if (showForm) {
+      setTimeout(() => titleInputRef.current?.focus(), 50)
+    }
+  }, [showForm])
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && showForm) {
+        setShowForm(false)
+        setImageUrl(null)
+        setSubmitError('')
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [showForm])
 
   const URGENCY_ORDER = { emergency: 0, urgent: 1, normal: 2 }
 
@@ -543,11 +571,14 @@ export default function GetHelp() {
     if (categoryFilter !== 'All') {
       result = result.filter((r) => r.category === categoryFilter)
     }
+    if (urgencyFilter !== 'All') {
+      result = result.filter((r) => (r.urgency || 'normal') === urgencyFilter)
+    }
     if (myRequestsOnly && currentUser) {
       result = result.filter((r) => r.uid === currentUser.uid)
     }
-    if (keyword.trim()) {
-      const kw = keyword.trim().toLowerCase()
+    if (debouncedKeyword.trim()) {
+      const kw = debouncedKeyword.trim().toLowerCase()
       result = result.filter((r) =>
         r.title?.toLowerCase().includes(kw) || r.description?.toLowerCase().includes(kw)
       )
@@ -561,6 +592,10 @@ export default function GetHelp() {
         }))
         .filter((r) => r.distance <= 10)
         .sort((a, b) => a.distance - b.distance)
+    } else if (sortBy === 'most-needed') {
+      result = [...result].sort((a, b) => (b.alsoNeedCount || 0) - (a.alsoNeedCount || 0))
+    } else if (sortBy === 'newest') {
+      result = [...result].sort((a, b) => b.createdAt - a.createdAt)
     } else {
       result = [...result].sort((a, b) => {
         const urgencyDiff = (URGENCY_ORDER[a.urgency] ?? 2) - (URGENCY_ORDER[b.urgency] ?? 2)
@@ -569,11 +604,17 @@ export default function GetHelp() {
       })
     }
     return result
-  }, [requests, filter, categoryFilter, distanceFilter, myRequestsOnly, currentUser, location, keyword])
+  }, [requests, filter, categoryFilter, urgencyFilter, distanceFilter, myRequestsOnly, currentUser, location, debouncedKeyword, sortBy])
+
+  const hasActiveFilters = filter !== 'All' || categoryFilter !== 'All' || urgencyFilter !== 'All'
+    || myRequestsOnly || distanceFilter || debouncedKeyword.trim()
+
+  const emergencyCount = requests.filter((r) => r.urgency === 'emergency' && (!r.status || r.status === 'pending')).length
+  const urgentCount = requests.filter((r) => r.urgency === 'urgent' && (!r.status || r.status === 'pending')).length
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Get Help</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -601,6 +642,33 @@ export default function GetHelp() {
         )}
       </div>
 
+      {(emergencyCount > 0 || urgentCount > 0) && (
+        <div className="flex items-center gap-3 mb-4 text-xs">
+          {emergencyCount > 0 && (
+            <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+              {emergencyCount} emergency {emergencyCount === 1 ? 'request' : 'requests'}
+            </span>
+          )}
+          {urgentCount > 0 && (
+            <span className="flex items-center gap-1 text-orange-500 dark:text-orange-400 font-semibold">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+              {urgentCount} urgent {urgentCount === 1 ? 'request' : 'requests'}
+            </span>
+          )}
+        </div>
+      )}
+
+      {successMsg && (
+        <div
+          role="status"
+          className="mb-4 flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm font-medium"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          Your help request was submitted. The community will be notified.
+        </div>
+      )}
+
       {showForm && (
         <div className="card p-6 mb-6">
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
@@ -622,11 +690,12 @@ export default function GetHelp() {
               </div>
               <input
                 id="gh-title"
+                ref={titleInputRef}
                 type="text"
                 required
                 maxLength={TITLE_MAX}
                 value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                onChange={(e) => { setForm((f) => ({ ...f, title: e.target.value })); setSubmitError('') }}
                 placeholder="Brief summary of what you need"
                 className="input-field"
                 aria-describedby="gh-title-counter"
@@ -650,7 +719,7 @@ export default function GetHelp() {
                 required
                 maxLength={DESC_MAX}
                 value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                onChange={(e) => { setForm((f) => ({ ...f, description: e.target.value })); setSubmitError('') }}
                 placeholder="Describe your situation in detail..."
                 rows={4}
                 className="input-field resize-none"
@@ -829,6 +898,32 @@ export default function GetHelp() {
           )}
         </div>
 
+        {/* Urgency Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {[
+            { value: 'All', label: 'All Urgency' },
+            { value: 'emergency', label: 'Emergency' },
+            { value: 'urgent', label: 'Urgent' },
+            { value: 'normal', label: 'Normal' },
+          ].map((u) => (
+            <button
+              key={u.value}
+              onClick={() => setUrgencyFilter(u.value)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                urgencyFilter === u.value
+                  ? u.value === 'emergency'
+                    ? 'bg-red-600 text-white'
+                    : u.value === 'urgent'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-700 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {u.label}
+            </button>
+          ))}
+        </div>
+
         {/* Category Filters */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {['All', ...CATEGORIES].map((c) => (
@@ -847,9 +942,41 @@ export default function GetHelp() {
         </div>
 
         {!loading && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            {filtered.length} {filtered.length === 1 ? 'request' : 'requests'} found
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {filtered.length} {filtered.length === 1 ? 'request' : 'requests'} found
+            </p>
+            <div className="flex items-center gap-2">
+              {!distanceFilter && (
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  aria-label="Sort requests by"
+                  className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="urgency">Sort: Urgency</option>
+                  <option value="newest">Sort: Newest</option>
+                  <option value="most-needed">Sort: Most Needed</option>
+                </select>
+              )}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('All')
+                    setCategoryFilter('All')
+                    setUrgencyFilter('All')
+                    setMyRequestsOnly(false)
+                    setDistanceFilter(false)
+                    setKeyword('')
+                  }}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { Navigate } from 'react-router-dom'
+import usePageTitle from '../hooks/usePageTitle'
 import { db } from '../firebase'
 import {
   collection,
@@ -173,11 +174,27 @@ function BroadcastPanel() {
   )
 }
 
-function OverviewTab({ users, requests, posts, updates, reports, volunteerCount }) {
+function OverviewTab({ users, requests, posts, updates, reports, volunteers }) {
   const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'open' || !r.status).length
   const resolvedRequests = requests.filter((r) => r.status === 'completed' || r.status === 'resolved').length
   const admins = users.filter((u) => u.role === 'admin').length
   const openReports = reports.filter((r) => r.status === 'open').length
+
+  const skillBreakdown = useMemo(() => {
+    const counts = {}
+    volunteers.forEach((v) => {
+      v.skills?.forEach((s) => { counts[s] = (counts[s] || 0) + 1 })
+    })
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [volunteers])
+
+  const categoryBreakdown = useMemo(() => {
+    const counts = {}
+    requests.filter((r) => !r.status || r.status === 'pending').forEach((r) => {
+      if (r.category) counts[r.category] = (counts[r.category] || 0) + 1
+    })
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [requests])
 
   return (
     <div className="space-y-6">
@@ -185,7 +202,7 @@ function OverviewTab({ users, requests, posts, updates, reports, volunteerCount 
         <StatCard label="Total Users" value={users.length} sub={`${admins} admin${admins !== 1 ? 's' : ''}`} color="text-primary-600 dark:text-primary-400" />
         <StatCard label="Help Requests" value={requests.length} sub={`${openRequests} open · ${resolvedRequests} resolved`} color="text-yellow-600 dark:text-yellow-400" />
         <StatCard label="Community Posts" value={posts.length} color="text-purple-600 dark:text-purple-400" />
-        <StatCard label="Volunteers" value={volunteerCount} sub="Registered helpers" color="text-green-600 dark:text-green-400" />
+        <StatCard label="Volunteers" value={volunteers.length} sub="Registered helpers" color="text-green-600 dark:text-green-400" />
         <StatCard label="Open Reports" value={openReports} sub="Needs attention" color={openReports > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'} />
         <StatCard label="Community Updates" value={updates.length} color="text-indigo-600 dark:text-indigo-400" />
       </div>
@@ -232,6 +249,46 @@ function OverviewTab({ users, requests, posts, updates, reports, volunteerCount 
             </div>
           )}
         </div>
+
+        {skillBreakdown.length > 0 && (
+          <div className="card p-5">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Volunteer Skills Breakdown</h3>
+            <div className="space-y-2">
+              {skillBreakdown.map(([skill, count]) => (
+                <div key={skill} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-300 w-36 shrink-0 truncate">{skill}</span>
+                  <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-2 bg-primary-500 rounded-full transition-all"
+                      style={{ width: `${Math.round((count / volunteers.length) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 w-6 text-right shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {categoryBreakdown.length > 0 && (
+          <div className="card p-5">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Open Requests by Category</h3>
+            <div className="space-y-2">
+              {categoryBreakdown.map(([category, count]) => (
+                <div key={category} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-300 w-36 shrink-0 truncate">{category}</span>
+                  <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-2 bg-yellow-500 rounded-full transition-all"
+                      style={{ width: `${Math.round((count / Math.max(...categoryBreakdown.map((c) => c[1]))) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 w-6 text-right shrink-0">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -242,6 +299,29 @@ function RequestsTab({ requests }) {
   const [deleteError, setDeleteError] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [reqSearch, setReqSearch] = useState('')
+
+  const handleExportCSV = () => {
+    const cols = ['ID', 'Title', 'Description', 'Category', 'Urgency', 'Status', 'User', 'Location', 'Created']
+    const rows = filteredRequests.map((r) => [
+      r.id,
+      `"${(r.title || '').replace(/"/g, '""')}"`,
+      `"${(r.description || '').replace(/"/g, '""')}"`,
+      r.category || '',
+      r.urgency || 'normal',
+      r.status || 'pending',
+      `"${(r.userName || '').replace(/"/g, '""')}"`,
+      `"${(r.location || '').replace(/"/g, '""')}"`,
+      r.createdAt ? r.createdAt.toISOString() : '',
+    ])
+    const csv = [cols.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `help-requests-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const handleStatus = async (id, status) => {
     setStatusError('')
@@ -278,15 +358,27 @@ function RequestsTab({ requests }) {
       {deleteError && (
         <p className="text-sm text-red-600 dark:text-red-400 px-1">{deleteError}</p>
       )}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        <input
-          type="search"
-          placeholder="Search requests by title, user, or category..."
-          value={reqSearch}
-          onChange={(e) => setReqSearch(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="search"
+            placeholder="Search requests by title, user, or category..."
+            value={reqSearch}
+            onChange={(e) => setReqSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        {filteredRequests.length > 0 && (
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="shrink-0 flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            Export CSV
+          </button>
+        )}
       </div>
       <div className="card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
@@ -347,6 +439,10 @@ function UpdatesTab({ updates }) {
   const [saveError, setSaveError] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleteError, setDeleteError] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({ title: '', description: '', type: 'INFO', location: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.description.trim()) return
@@ -374,6 +470,31 @@ function UpdatesTab({ updates }) {
     } catch {
       setDeleteError('Failed to delete update. Please try again.')
       setConfirmDeleteId(null)
+    }
+  }
+
+  const startEdit = (u) => {
+    setEditingId(u.id)
+    setEditForm({ title: u.title || '', description: u.description || '', type: u.type || 'INFO', location: u.location || '' })
+    setEditError('')
+  }
+
+  const handleEditSave = async () => {
+    if (!editForm.title.trim() || !editForm.description.trim()) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      await updateDoc(doc(db, 'communityUpdates', editingId), {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        type: editForm.type,
+        location: editForm.location.trim(),
+      })
+      setEditingId(null)
+    } catch {
+      setEditError('Failed to save changes. Please try again.')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -439,25 +560,70 @@ function UpdatesTab({ updates }) {
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
             {updates.map((u) => (
-              <div key={u.id} className="px-5 py-4 flex items-start gap-3">
-                <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md h-fit mt-0.5 ${TYPE_COLORS[u.type] || TYPE_COLORS.INFO}`}>
-                  {u.type || 'INFO'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{u.title}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{u.description}</p>
-                  {u.location && <p className="text-xs text-gray-400 mt-0.5">{u.location}</p>}
-                  <p className="text-xs text-gray-400 mt-1">{u.createdAt ? formatDistanceToNow(u.createdAt, { addSuffix: true }) : ''}</p>
-                </div>
-                {confirmDeleteId === u.id ? (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => handleDelete(u.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
-                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+              <div key={u.id} className="px-5 py-4">
+                {editingId === u.id ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Title *</label>
+                        <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Type</label>
+                        <select value={editForm.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                          <option value="INFO">INFO</option>
+                          <option value="NEW">NEW</option>
+                          <option value="NEED">NEED</option>
+                          <option value="EVENT">EVENT</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Description *</label>
+                      <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">Location (optional)</label>
+                      <input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                    </div>
+                    {editError && <p className="text-xs text-red-600 dark:text-red-400">{editError}</p>}
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleEditSave} disabled={editSaving || !editForm.title.trim() || !editForm.description.trim()} className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-50">
+                        {editSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        Save
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <button onClick={() => setConfirmDeleteId(u.id)} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-start gap-3">
+                    <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md h-fit mt-0.5 ${TYPE_COLORS[u.type] || TYPE_COLORS.INFO}`}>
+                      {u.type || 'INFO'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{u.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{u.description}</p>
+                      {u.location && <p className="text-xs text-gray-400 mt-0.5">{u.location}</p>}
+                      <p className="text-xs text-gray-400 mt-1">{u.createdAt ? formatDistanceToNow(u.createdAt, { addSuffix: true }) : ''}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => startEdit(u)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {confirmDeleteId === u.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleDelete(u.id)} className="text-xs px-2 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium">Yes</button>
+                          <button onClick={() => setConfirmDeleteId(null)} className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(u.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -649,6 +815,7 @@ function UsersTab({ users }) {
 function PostsTab({ posts }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deleteError, setDeleteError] = useState('')
+  const [postSearch, setPostSearch] = useState('')
 
   const handleDelete = async (id) => {
     setDeleteError('')
@@ -661,20 +828,39 @@ function PostsTab({ posts }) {
     }
   }
 
+  const filteredPosts = postSearch.trim()
+    ? posts.filter((p) =>
+        (p.content || p.title || '').toLowerCase().includes(postSearch.toLowerCase()) ||
+        (p.userName || p.authorName || '').toLowerCase().includes(postSearch.toLowerCase())
+      )
+    : posts
+
   return (
     <div className="space-y-3">
       {deleteError && (
         <p className="text-sm text-red-600 dark:text-red-400 px-1">{deleteError}</p>
       )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="search"
+          placeholder="Search posts by content or author..."
+          value={postSearch}
+          onChange={(e) => setPostSearch(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h3 className="font-semibold text-gray-900 dark:text-white">All Posts ({posts.length})</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            All Posts ({filteredPosts.length}{postSearch ? ` of ${posts.length}` : ''})
+          </h3>
         </div>
-        {posts.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-gray-400 text-center">No posts yet</p>
+        {filteredPosts.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-400 text-center">{postSearch ? 'No matching posts.' : 'No posts yet'}</p>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-800">
-            {posts.map((p) => (
+            {filteredPosts.map((p) => (
               <div key={p.id} className="px-5 py-4 flex items-start gap-3">
                 <img
                   src={p.userAvatar || p.authorAvatar || `https://ui-avatars.com/api/?name=U&background=2563eb&color=fff`}
@@ -952,6 +1138,7 @@ function ResourcesTab({ resources }) {
 
 export default function Admin() {
   const { isAdmin, loading, currentUser } = useAuth()
+  usePageTitle('Admin')
   const [tab, setTab] = useState('overview')
   const [users, setUsers] = useState([])
   const [requests, setRequests] = useState([])
@@ -1040,7 +1227,7 @@ export default function Admin() {
   const openReports = reports.filter((r) => !r.status || r.status === 'open').length
 
   const tabContent = {
-    overview: <OverviewTab users={users} requests={requests} posts={posts} updates={updates} reports={reports} volunteerCount={volunteers.length} />,
+    overview: <OverviewTab users={users} requests={requests} posts={posts} updates={updates} reports={reports} volunteers={volunteers} />,
     requests: <RequestsTab requests={requests} />,
     updates: <UpdatesTab updates={updates} />,
     users: <UsersTab users={users} />,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import usePageTitle from '../hooks/usePageTitle'
 import { db } from '../firebase'
 import {
   collection,
@@ -190,6 +191,7 @@ function DetailModal({ resource, onClose }) {
 let seedAttempted = false
 
 export default function Resources() {
+  usePageTitle('Resources')
   const loc = useLocation()
   const params = new URLSearchParams(loc.search)
   const initialQ = params.get('q') || ''

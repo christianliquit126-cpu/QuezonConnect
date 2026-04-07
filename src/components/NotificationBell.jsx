@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Bell, BellOff, Heart, MessageCircle, Mail, Users, Megaphone } from 'lucide-react'
+import { Bell, BellOff, Heart, MessageCircle, Mail, Users, Megaphone, X, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -31,6 +31,8 @@ export default function NotificationBell() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [unreadOnly, setUnreadOnly] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
   const dropRef = useRef(null)
 
   useEffect(() => {
@@ -54,7 +56,6 @@ export default function NotificationBell() {
         )
       },
       () => {
-        // Composite index may not exist yet — fall back to unordered query
         const fallback = query(
           collection(db, 'notifications'),
           where('recipientUid', '==', currentUser.uid),
@@ -83,10 +84,11 @@ export default function NotificationBell() {
     const handleClickOutside = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) {
         setOpen(false)
+        setConfirmClear(false)
       }
     }
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') { setOpen(false); setConfirmClear(false) }
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
@@ -97,6 +99,8 @@ export default function NotificationBell() {
   }, [])
 
   const unreadCount = notifications.filter((n) => !n.read).length
+
+  const visibleNotifications = unreadOnly ? notifications.filter((n) => !n.read) : notifications
 
   const markAllRead = async () => {
     const unread = notifications.filter((n) => !n.read)
@@ -111,6 +115,12 @@ export default function NotificationBell() {
     const batch = writeBatch(db)
     notifications.forEach((n) => batch.delete(doc(db, 'notifications', n.id)))
     await batch.commit()
+    setConfirmClear(false)
+  }
+
+  const deleteOne = async (e, id) => {
+    e.stopPropagation()
+    await deleteDoc(doc(db, 'notifications', id))
   }
 
   const handleClickNotification = async (n) => {
@@ -129,13 +139,13 @@ export default function NotificationBell() {
     setOpen((prev) => {
       const next = !prev
       if (next) {
-        // Auto-mark-all-read after 3 s of the panel being open
         clearTimeout(autoMarkTimerRef.current)
         autoMarkTimerRef.current = setTimeout(() => {
           markAllRead()
         }, 3000)
       } else {
         clearTimeout(autoMarkTimerRef.current)
+        setConfirmClear(false)
       }
       return next
     })
@@ -169,7 +179,18 @@ export default function NotificationBell() {
                 </span>
               )}
             </h3>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setUnreadOnly((v) => !v)}
+                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  unreadOnly
+                    ? 'bg-primary-600 text-white border-primary-600'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary-400'
+                }`}
+              >
+                Unread
+              </button>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
@@ -179,45 +200,78 @@ export default function NotificationBell() {
                 </button>
               )}
               {notifications.length > 0 && (
-                <button
-                  onClick={clearAll}
-                  className="text-xs text-red-500 dark:text-red-400 hover:underline"
-                >
-                  Clear all
-                </button>
+                confirmClear ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={clearAll}
+                      className="text-xs px-1.5 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      className="text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    className="text-xs text-red-500 dark:text-red-400 hover:underline"
+                  >
+                    Clear all
+                  </button>
+                )
               )}
             </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {visibleNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <BellOff className="w-8 h-8 text-gray-300 dark:text-gray-600 mb-2" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">No notifications yet</p>
-                <p className="text-xs text-gray-400 mt-1">We'll notify you when something happens</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {unreadOnly ? 'No unread notifications' : 'No notifications yet'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {unreadOnly ? 'All caught up!' : "We'll notify you when something happens"}
+                </p>
               </div>
             ) : (
-              notifications.map((n) => {
+              visibleNotifications.map((n) => {
                 const cfg = TYPE_CONFIG[n.type] || { icon: Bell, color: 'text-gray-400' }
                 const TypeIcon = cfg.icon
                 return (
-                <button
-                  key={n.id}
-                  onClick={() => handleClickNotification(n)}
-                  className={`w-full text-left px-4 py-3 border-b border-gray-50 dark:border-gray-800 last:border-0 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-                    !n.read ? 'bg-primary-50/60 dark:bg-primary-900/10' : ''
-                  }`}
-                >
-                  <TypeIcon className={`w-4 h-4 shrink-0 mt-0.5 ${cfg.color}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 dark:text-gray-200 leading-snug">{n.message}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {formatDistanceToNow(n.createdAt, { addSuffix: true })}
-                    </p>
+                  <div
+                    key={n.id}
+                    className={`group relative border-b border-gray-50 dark:border-gray-800 last:border-0 flex items-start gap-3 ${
+                      !n.read ? 'bg-primary-50/60 dark:bg-primary-900/10' : ''
+                    }`}
+                  >
+                    <button
+                      onClick={() => handleClickNotification(n)}
+                      className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <TypeIcon className={`w-4 h-4 shrink-0 mt-0.5 ${cfg.color}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 dark:text-gray-200 leading-snug pr-5">{n.message}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {formatDistanceToNow(n.createdAt, { addSuffix: true })}
+                        </p>
+                      </div>
+                      {!n.read && (
+                        <div className="w-2 h-2 bg-primary-500 rounded-full shrink-0 mt-1.5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => deleteOne(e, n.id)}
+                      aria-label="Delete notification"
+                      className="absolute right-2 top-2 p-1 rounded text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  {!n.read && (
-                    <div className="w-2 h-2 bg-primary-500 rounded-full shrink-0 mt-1.5" />
-                  )}
-                </button>
                 )
               })
             )}

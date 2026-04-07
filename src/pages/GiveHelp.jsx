@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../firebase'
+import usePageTitle from '../hooks/usePageTitle'
 import {
   collection,
   addDoc,
@@ -36,6 +37,7 @@ const avatarFallback = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff`
 
 export default function GiveHelp() {
+  usePageTitle('Give Help')
   const { displayUser, currentUser } = useAuth()
   const [skills, setSkills] = useState([])
   const [volunteers, setVolunteers] = useState([])
@@ -53,6 +55,9 @@ export default function GiveHelp() {
   const [registerError, setRegisterError] = useState('')
   const [noSkillsError, setNoSkillsError] = useState(false)
   const [markingHelped, setMarkingHelped] = useState(null)
+  const [volunteerSkillFilter, setVolunteerSkillFilter] = useState('All')
+  const [requestCategoryFilter, setRequestCategoryFilter] = useState('All')
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
 
   const handleMarkHelped = async (req) => {
     if (!currentUser || !myVolunteerDoc) return
@@ -152,6 +157,8 @@ export default function GiveHelp() {
         online: true,
         createdAt: serverTimestamp(),
       })
+      setRegistrationSuccess(true)
+      setTimeout(() => setRegistrationSuccess(false), 6000)
     } catch (err) {
       console.error('Volunteer registration error:', err)
       setRegisterError('Registration failed. Please check your connection and try again.')
@@ -213,6 +220,30 @@ export default function GiveHelp() {
 
   const isRegistered = !!myVolunteerDoc
 
+  const allSkills = useMemo(() => {
+    const s = new Set()
+    volunteers.forEach((v) => v.skills?.forEach((sk) => s.add(sk)))
+    return Array.from(s).sort()
+  }, [volunteers])
+
+  const allRequestCategories = useMemo(() => {
+    const c = new Set()
+    openRequests.forEach((r) => r.category && c.add(r.category))
+    return Array.from(c).sort()
+  }, [openRequests])
+
+  const filteredVolunteers = useMemo(() => {
+    if (volunteerSkillFilter === 'All') return volunteers
+    return volunteers.filter((v) => v.skills?.includes(volunteerSkillFilter))
+  }, [volunteers, volunteerSkillFilter])
+
+  const filteredRequests = useMemo(() => {
+    if (requestCategoryFilter === 'All') return openRequests
+    return openRequests.filter((r) => r.category === requestCategoryFilter)
+  }, [openRequests, requestCategoryFilter])
+
+  const totalHelps = volunteers.reduce((a, v) => a + (v.helpCount || 0), 0)
+
   const MEDAL_STYLES = ['text-yellow-500', 'text-gray-400', 'text-amber-700']
   const MEDAL_TITLES = ['Gold', 'Silver', 'Bronze']
 
@@ -225,11 +256,21 @@ export default function GiveHelp() {
         </p>
       </div>
 
+      {registrationSuccess && (
+        <div
+          role="status"
+          className="flex items-center gap-2 px-4 py-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm font-medium"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          You are now registered as a volunteer. Thank you for helping the community!
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { icon: Users, label: 'Active Volunteers', value: volunteers.length },
-          { icon: Heart, label: 'People Helped', value: volunteers.reduce((a, v) => a + (v.helpCount || 0), 0) },
+          { icon: Heart, label: 'Helps Facilitated', value: totalHelps },
           { icon: Award, label: 'Open Requests', value: openRequests.length },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="card p-4 text-center">
@@ -424,16 +465,36 @@ export default function GiveHelp() {
 
       {/* Open requests */}
       <div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          Help Requests Needing Volunteers
-        </h2>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Help Requests Needing Volunteers
+          </h2>
+          {allRequestCategories.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {['All', ...allRequestCategories].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setRequestCategoryFilter(c)}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                    requestCategoryFilter === c
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-6 h-6 text-primary-600 animate-spin" aria-label="Loading requests" />
           </div>
         ) : (
           <div className="space-y-3">
-            {(showAllRequests ? openRequests : openRequests.slice(0, 5)).map((req) => (
+            {(showAllRequests ? filteredRequests : filteredRequests.slice(0, 5)).map((req) => (
               <div
                 key={req.requestId}
                 className="card p-4 flex items-start justify-between gap-4 hover:border-primary-200 dark:hover:border-primary-800 transition-colors"
@@ -496,18 +557,20 @@ export default function GiveHelp() {
                 </div>
               </div>
             ))}
-            {openRequests.length === 0 && (
+            {filteredRequests.length === 0 && (
               <div className="card p-8 text-center">
-                <p className="text-gray-400 text-sm">No open requests right now. Check back soon!</p>
+                <p className="text-gray-400 text-sm">
+                  {openRequests.length === 0 ? 'No open requests right now. Check back soon!' : 'No requests match the selected category.'}
+                </p>
               </div>
             )}
-            {openRequests.length > 5 && (
+            {filteredRequests.length > 5 && (
               <button
                 type="button"
                 onClick={() => setShowAllRequests((v) => !v)}
                 className="text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline w-full text-center py-2"
               >
-                {showAllRequests ? 'Show less' : `Show ${openRequests.length - 5} more requests`}
+                {showAllRequests ? 'Show less' : `Show ${filteredRequests.length - 5} more requests`}
               </button>
             )}
           </div>
@@ -523,11 +586,31 @@ export default function GiveHelp() {
       {/* Volunteers */}
       {volunteers.length > 0 && (
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            Meet Our Volunteers
-          </h2>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              Meet Our Volunteers
+            </h2>
+            {allSkills.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {['All', ...allSkills].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setVolunteerSkillFilter(s)}
+                    className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      volunteerSkillFilter === s
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {volunteers.slice(0, 8).map((v, idx) => {
+            {filteredVolunteers.slice(0, 8).map((v, idx) => {
               const hasMedal = idx < 3 && (v.helpCount || 0) > 0
               return (
               <div key={v.id} className="card p-4 flex flex-col items-center text-center gap-2">

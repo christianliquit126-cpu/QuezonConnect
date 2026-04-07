@@ -1,5 +1,6 @@
 import React from 'react'
 import { useAuth } from '../context/AuthContext'
+import usePageTitle from '../hooks/usePageTitle'
 import Hero from '../components/Hero'
 import QuickActions from '../components/QuickActions'
 import Categories from '../components/Categories'
@@ -13,6 +14,7 @@ import ProximityNotificationListener from '../components/ProximityNotificationLi
 
 export default function Home() {
   const { displayUser } = useAuth()
+  usePageTitle('Home')
 
   return (
     <main className="w-full">

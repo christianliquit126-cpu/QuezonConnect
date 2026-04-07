@@ -6,6 +6,7 @@ import React, {
   useMemo,
   memo,
 } from 'react'
+import usePageTitle from '../hooks/usePageTitle'
 import {
   MapContainer,
   TileLayer,
@@ -670,6 +671,7 @@ const SidebarContent = memo(function SidebarContent({
 // ─── Main MapView ─────────────────────────────────────────────────────────────
 
 export default function MapView() {
+  usePageTitle('Map')
   const {
     location,
     address,

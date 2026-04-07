@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import usePageTitle from '../hooks/usePageTitle'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
@@ -29,6 +30,7 @@ const DEFAULT_NOTIF_PREFS = {
 }
 
 export default function Settings() {
+  usePageTitle('Settings')
   const { displayUser, currentUser, refreshProfile, logout } = useAuth()
   const navigate = useNavigate()
   const { location: detectedLoc } = useLocationCtx()

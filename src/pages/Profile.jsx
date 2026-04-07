@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, Link } from 'react-router-dom'
+import usePageTitle from '../hooks/usePageTitle'
 import { db } from '../firebase'
 import {
   collection,
@@ -37,6 +38,7 @@ const avatarFallback = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=160`
 
 export default function Profile() {
+  usePageTitle('My Profile')
   const { displayUser, currentUser } = useAuth()
   const navigate = useNavigate()
 
@@ -45,6 +47,7 @@ export default function Profile() {
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [loadingRequests, setLoadingRequests] = useState(true)
   const [activityTab, setActivityTab] = useState('all')
+  const [activitySort, setActivitySort] = useState('newest')
   const [volunteerDoc, setVolunteerDoc] = useState(null)
 
   useEffect(() => {
@@ -110,19 +113,23 @@ export default function Profile() {
     }).catch(() => {})
   }, [currentUser])
 
-  const allActivity = [...myPosts, ...myRequests].sort(
-    (a, b) => b.createdAt - a.createdAt
-  )
-
   const isLoadingAll = loadingPosts || loadingRequests
   const completedRequests = myRequests.filter((r) => r.status === 'completed').length
   const totalLikesReceived = myPosts.reduce((acc, p) => acc + (p.likes?.length || 0), 0)
 
-  const tabActivity = activityTab === 'posts'
-    ? myPosts
-    : activityTab === 'requests'
-      ? myRequests
-      : allActivity
+  const tabActivity = useMemo(() => {
+    const base = activityTab === 'posts'
+      ? myPosts
+      : activityTab === 'requests'
+        ? myRequests
+        : [...myPosts, ...myRequests]
+
+    return [...base].sort((a, b) => {
+      if (activitySort === 'oldest') return a.createdAt - b.createdAt
+      if (activitySort === 'most-liked') return (b.likes?.length || 0) - (a.likes?.length || 0)
+      return b.createdAt - a.createdAt
+    })
+  }, [myPosts, myRequests, activityTab, activitySort])
 
   const handleActivityClick = (item) => {
     if (item.type === 'post') {
@@ -262,25 +269,37 @@ export default function Profile() {
           </h2>
         </div>
 
-        {/* Activity tabs */}
-        <div className="flex items-center gap-1 mb-4 border-b border-gray-100 dark:border-gray-800">
-          {[
-            { id: 'all', label: `All (${allActivity.length})` },
-            { id: 'posts', label: `Posts (${myPosts.length})` },
-            { id: 'requests', label: `Help Requests (${myRequests.length})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActivityTab(tab.id)}
-              className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors -mb-px ${
-                activityTab === tab.id
-                  ? 'border-primary-600 text-primary-700 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Activity tabs + sort */}
+        <div className="flex items-center justify-between gap-2 mb-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-1">
+            {[
+              { id: 'all', label: `All (${myPosts.length + myRequests.length})` },
+              { id: 'posts', label: `Posts (${myPosts.length})` },
+              { id: 'requests', label: `Help Requests (${myRequests.length})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActivityTab(tab.id)}
+                className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors -mb-px ${
+                  activityTab === tab.id
+                    ? 'border-primary-600 text-primary-700 dark:text-primary-400'
+                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <select
+            value={activitySort}
+            onChange={(e) => setActivitySort(e.target.value)}
+            aria-label="Sort activity"
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500 mb-0.5"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="most-liked">Most liked</option>
+          </select>
         </div>
 
         {isLoadingAll ? (

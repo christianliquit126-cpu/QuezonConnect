@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useLocation } from 'react-router-dom'
+import usePageTitle from '../hooks/usePageTitle'
 import { db } from '../firebase'
 import {
   collection,
@@ -93,6 +94,7 @@ function SkeletonChat() {
 }
 
 export default function Messages() {
+  usePageTitle('Messages')
   const { currentUser, displayUser } = useAuth()
   const routerLocation = useLocation()
   const [chats, setChats] = useState([])
@@ -614,30 +616,41 @@ export default function Messages() {
               {sendError && (
                 <p className="px-4 pt-2 text-xs text-red-500" role="alert">{sendError}</p>
               )}
-              {input.length >= MSG_MAX * 0.9 && (
-                <p className={`px-4 pt-2 text-xs text-right ${input.length >= MSG_MAX ? 'text-red-500' : 'text-amber-500'}`} aria-live="polite">
-                  {MSG_MAX - input.length} characters remaining
-                </p>
-              )}
               <form
                 onSubmit={handleSend}
-                className="flex items-center gap-2 px-4 py-3"
+                className="flex items-end gap-2 px-4 py-3"
               >
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => { setInput(e.target.value); if (sendError) setSendError('') }}
-                  maxLength={MSG_MAX}
-                  placeholder="Type a message... (Enter to send)"
-                  aria-label="Message"
-                  className={`input-field flex-1 ${input.length >= MSG_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
-                />
+                <div className="flex-1 relative">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => { setInput(e.target.value); if (sendError) setSendError('') }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSend(e)
+                      }
+                    }}
+                    maxLength={MSG_MAX}
+                    rows={1}
+                    placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                    aria-label="Message"
+                    style={{ resize: 'none', overflow: 'hidden' }}
+                    onInput={(e) => {
+                      e.currentTarget.style.height = 'auto'
+                      e.currentTarget.style.height = Math.min(e.currentTarget.scrollHeight, 120) + 'px'
+                    }}
+                    className={`input-field w-full ${input.length >= MSG_MAX ? 'border-red-400 focus:ring-red-400' : ''}`}
+                  />
+                  <span className={`absolute bottom-2 right-2 text-xs ${input.length >= MSG_MAX ? 'text-red-500' : input.length >= MSG_MAX * 0.9 ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} aria-live="polite">
+                    {input.length}/{MSG_MAX}
+                  </span>
+                </div>
                 <button
                   type="submit"
                   disabled={!input.trim() || input.length > MSG_MAX}
                   aria-label="Send message"
-                  className="w-9 h-9 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+                  className="w-9 h-9 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 shrink-0 mb-0.5"
                 >
                   <Send className="w-4 h-4" aria-hidden="true" />
                 </button>
