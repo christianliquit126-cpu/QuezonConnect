@@ -11,12 +11,13 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   increment,
   arrayUnion,
   limit,
   getDoc,
 } from 'firebase/firestore'
-import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle } from 'lucide-react'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle, Medal, UserMinus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -194,7 +195,26 @@ export default function GiveHelp() {
   const toggleUpdatedSkill = (s) =>
     setUpdatedSkills((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
 
+  const [unregistering, setUnregistering] = useState(false)
+  const [confirmUnregister, setConfirmUnregister] = useState(false)
+
+  const handleUnregister = async () => {
+    if (!currentUser) return
+    setUnregistering(true)
+    try {
+      await deleteDoc(doc(db, 'volunteers', currentUser.uid))
+      setConfirmUnregister(false)
+    } catch (err) {
+      console.error('Unregister error:', err)
+    } finally {
+      setUnregistering(false)
+    }
+  }
+
   const isRegistered = !!myVolunteerDoc
+
+  const MEDAL_STYLES = ['text-yellow-500', 'text-gray-400', 'text-amber-700']
+  const MEDAL_TITLES = ['Gold', 'Silver', 'Bronze']
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -257,7 +277,41 @@ export default function GiveHelp() {
               </button>
             </div>
 
-            {/* Update Skills */}
+            {/* Unregister */}
+            {!editingSkills && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                {confirmUnregister ? (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800">
+                    <p className="text-xs text-red-700 dark:text-red-400 flex-1">
+                      Remove yourself from the volunteer list? Your help history will be lost.
+                    </p>
+                    <button
+                      onClick={handleUnregister}
+                      disabled={unregistering}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium disabled:opacity-60"
+                    >
+                      {unregistering ? 'Removing...' : 'Confirm'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmUnregister(false)}
+                      className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmUnregister(true)}
+                    className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400 hover:text-red-600 transition-colors font-medium"
+                  >
+                    <UserMinus className="w-3 h-3" />
+                    Unregister as Volunteer
+                  </button>
+                )}
+              </div>
+            )}
+
             {editingSkills ? (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Update your skills</p>
@@ -473,7 +527,9 @@ export default function GiveHelp() {
             Meet Our Volunteers
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {volunteers.slice(0, 8).map((v) => (
+            {volunteers.slice(0, 8).map((v, idx) => {
+              const hasMedal = idx < 3 && (v.helpCount || 0) > 0
+              return (
               <div key={v.id} className="card p-4 flex flex-col items-center text-center gap-2">
                 <div className="relative">
                   <img
@@ -489,6 +545,15 @@ export default function GiveHelp() {
                     }`}
                     aria-label={v.online ? 'Available' : 'Unavailable'}
                   />
+                  {hasMedal && (
+                    <span
+                      className={`absolute -top-1 -left-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center ${MEDAL_STYLES[idx]}`}
+                      title={`${MEDAL_TITLES[idx]} volunteer`}
+                      aria-label={`${MEDAL_TITLES[idx]} volunteer`}
+                    >
+                      <Award className="w-3 h-3" aria-hidden="true" />
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">{v.name}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -503,7 +568,8 @@ export default function GiveHelp() {
                   {v.helpCount || 0} {v.helpCount === 1 ? 'person helped' : 'people helped'}
                 </p>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

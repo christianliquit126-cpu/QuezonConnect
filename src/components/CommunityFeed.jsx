@@ -16,7 +16,7 @@ import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
-import { Inbox } from 'lucide-react'
+import { Inbox, Search, X } from 'lucide-react'
 import { logEvent } from '../services/analytics'
 import { FEED_FILTERS as FILTERS } from '../constants/categories'
 
@@ -43,16 +43,19 @@ function PostSkeleton() {
   )
 }
 
+const ALL_FILTERS = ['All', 'Trending', ...FILTERS.filter((f) => f !== 'All')]
+
 export default function CommunityFeed() {
   const { displayUser, isLoggedIn, isAdmin } = useAuth()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
   const [displayLimit, setDisplayLimit] = useState(20)
+  const [feedSearch, setFeedSearch] = useState('')
 
   useEffect(() => {
     setDisplayLimit(20)
-  }, [filter])
+  }, [filter, feedSearch])
 
   useEffect(() => {
     const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(200))
@@ -107,18 +110,50 @@ export default function CommunityFeed() {
   }, [])
 
   // Memoize filtered posts to avoid re-filtering on every render
-  const filtered = useMemo(
-    () => (filter === 'All' ? posts : posts.filter((p) => p.category === filter)),
-    [posts, filter]
-  )
+  const filtered = useMemo(() => {
+    let result = filter === 'All' || filter === 'Trending'
+      ? posts
+      : posts.filter((p) => p.category === filter)
+
+    if (feedSearch.trim()) {
+      const kw = feedSearch.trim().toLowerCase()
+      result = result.filter((p) =>
+        p.content?.toLowerCase().includes(kw) ||
+        p.userName?.toLowerCase().includes(kw) ||
+        p.category?.toLowerCase().includes(kw)
+      )
+    }
+
+    if (filter === 'Trending') {
+      result = [...result].sort((a, b) => {
+        const scoreA = (a.likes?.length || 0) * 2 + (a.commentCount || 0)
+        const scoreB = (b.likes?.length || 0) * 2 + (b.commentCount || 0)
+        return scoreB - scoreA
+      })
+    } else {
+      // Pinned posts always appear first
+      result = [...result].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return 0
+      })
+    }
+
+    return result
+  }, [posts, filter, feedSearch])
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Community Feed</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Community Feed</h2>
+          {!loading && (
+            <span className="text-xs text-gray-400 font-normal">({posts.length} posts)</span>
+          )}
+        </div>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
-          {FILTERS.map((f) => {
-            const count = f === 'All' ? posts.length : posts.filter((p) => p.category === f).length
+          {ALL_FILTERS.map((f) => {
+            const count = f === 'All' || f === 'Trending' ? posts.length : posts.filter((p) => p.category === f).length
             return (
               <button
                 key={f}
@@ -130,7 +165,7 @@ export default function CommunityFeed() {
                 }`}
               >
                 {f}
-                {!loading && count > 0 && (
+                {!loading && f !== 'Trending' && count > 0 && (
                   <span className={`text-xs ${filter === f ? 'opacity-80' : 'opacity-60'}`}>
                     {count}
                   </span>
@@ -139,6 +174,29 @@ export default function CommunityFeed() {
             )
           })}
         </div>
+      </div>
+
+      {/* Feed keyword search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          placeholder="Search posts by content, author, or category..."
+          value={feedSearch}
+          onChange={(e) => setFeedSearch(e.target.value)}
+          className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          aria-label="Search community feed"
+        />
+        {feedSearch && (
+          <button
+            type="button"
+            onClick={() => setFeedSearch('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label="Clear search"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {isLoggedIn && <CreatePost currentUser={displayUser} onSubmit={handleCreatePost} />}
@@ -155,10 +213,18 @@ export default function CommunityFeed() {
         <div className="card p-10 text-center space-y-2">
           <Inbox className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
           <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
-            {filter !== 'All' ? `No posts in "${filter}" yet.` : 'No posts yet.'}
+            {feedSearch.trim()
+              ? `No posts matching "${feedSearch}".`
+              : filter !== 'All' && filter !== 'Trending'
+                ? `No posts in "${filter}" yet.`
+                : 'No posts yet.'}
           </p>
           <p className="text-gray-400 dark:text-gray-500 text-xs">
-            {filter !== 'All' ? 'Try another category or be the first to share!' : 'Be the first to share something with the community!'}
+            {feedSearch.trim()
+              ? 'Try different keywords or clear your search.'
+              : filter !== 'All' && filter !== 'Trending'
+                ? 'Try another category or be the first to share!'
+                : 'Be the first to share something with the community!'}
           </p>
         </div>
       )}

@@ -123,9 +123,25 @@ export default function NotificationBell() {
     }
   }
 
+  const autoMarkTimerRef = useRef(null)
+
   const handleOpen = () => {
-    setOpen((prev) => !prev)
+    setOpen((prev) => {
+      const next = !prev
+      if (next) {
+        // Auto-mark-all-read after 3 s of the panel being open
+        clearTimeout(autoMarkTimerRef.current)
+        autoMarkTimerRef.current = setTimeout(() => {
+          markAllRead()
+        }, 3000)
+      } else {
+        clearTimeout(autoMarkTimerRef.current)
+      }
+      return next
+    })
   }
+
+  useEffect(() => () => clearTimeout(autoMarkTimerRef.current), [])
 
   return (
     <div className="relative" ref={dropRef}>

@@ -55,7 +55,8 @@ service cloud.firestore {
         allow create: if isAuth() && notBanned()
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.content.size() <= 300;
-        allow update: if notBanned() && isOwner(resource.data.uid);
+        // Owner can edit their own comment; admin can edit any
+        allow update: if notBanned() && (isOwner(resource.data.uid) || isAdmin());
         allow delete: if isOwner(resource.data.uid) || isAdmin();
       }
     }
@@ -66,10 +67,13 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.description.size() <= 2000;
-      // Prevent uid field from being changed on update
+      // Owner/admin can update any field (except uid)
       allow update: if notBanned()
         && (isOwner(resource.data.uid) || isAdmin())
         && (!('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid);
+      // Any authenticated non-banned user can toggle alsoNeedBy votes
+      allow update: if isAuth() && notBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['alsoNeedBy', 'alsoNeedCount']);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
 
@@ -123,6 +127,8 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && (!('senderUid' in request.resource.data)
             || request.resource.data.senderUid == request.auth.uid);
+      // Allow admins to create system-wide broadcast notifications (no senderUid check)
+      allow create: if isAdmin();
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid;
       allow delete: if isAuth()
         && (resource.data.recipientUid == request.auth.uid || isAdmin());

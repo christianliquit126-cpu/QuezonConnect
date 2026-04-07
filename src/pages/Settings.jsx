@@ -14,10 +14,19 @@ import {
   LogOut,
   Mail,
   FileText,
+  Bell,
 } from 'lucide-react'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 import { useLocationCtx } from '../context/LocationContext'
 import LocationPicker from '../components/LocationPicker'
+
+const DEFAULT_NOTIF_PREFS = {
+  likes: true,
+  comments: true,
+  messages: true,
+  helpStatus: true,
+  system: true,
+}
 
 export default function Settings() {
   const { displayUser, currentUser, refreshProfile, logout } = useAuth()
@@ -40,6 +49,9 @@ export default function Settings() {
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarProgress, setAvatarProgress] = useState(0)
   const [avatarError, setAvatarError] = useState('')
+  const [notifPrefs, setNotifPrefs] = useState(DEFAULT_NOTIF_PREFS)
+  const [savingPrefs, setSavingPrefs] = useState(false)
+  const [savedPrefs, setSavedPrefs] = useState(false)
 
   useEffect(() => {
     if (displayUser) {
@@ -52,8 +64,26 @@ export default function Settings() {
         lng: displayUser.lng || null,
         bio: displayUser.bio || '',
       })
+      if (displayUser.notifPrefs) {
+        setNotifPrefs({ ...DEFAULT_NOTIF_PREFS, ...displayUser.notifPrefs })
+      }
     }
   }, [displayUser])
+
+  const handleSaveNotifPrefs = async () => {
+    if (!currentUser) return
+    setSavingPrefs(true)
+    try {
+      await updateDoc(doc(db, 'users', currentUser.uid), { notifPrefs })
+      await refreshProfile()
+      setSavedPrefs(true)
+      setTimeout(() => setSavedPrefs(false), 3000)
+    } catch {
+      console.error('Failed to save notification preferences')
+    } finally {
+      setSavingPrefs(false)
+    }
+  }
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0]
@@ -412,6 +442,60 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* Notification Preferences */}
+      <div className="card p-6 space-y-4">
+        <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 flex items-center gap-2">
+          <Bell className="w-4 h-4" aria-hidden="true" />
+          Notification Preferences
+        </h2>
+        <p className="text-xs text-gray-400">Choose which types of notifications you want to receive.</p>
+        <div className="space-y-3">
+          {[
+            { key: 'likes', label: 'Likes on my posts' },
+            { key: 'comments', label: 'Comments on my posts' },
+            { key: 'messages', label: 'New direct messages' },
+            { key: 'helpStatus', label: 'Help request status updates' },
+            { key: 'system', label: 'System and community announcements' },
+          ].map(({ key, label }) => (
+            <label key={key} className="flex items-center justify-between gap-3 cursor-pointer">
+              <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={notifPrefs[key]}
+                onClick={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
+                  notifPrefs[key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                    notifPrefs[key] ? 'translate-x-4.5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={handleSaveNotifPrefs}
+            disabled={savingPrefs}
+            className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+          >
+            {savingPrefs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : savedPrefs ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+            {savingPrefs ? 'Saving…' : savedPrefs ? 'Saved!' : 'Save Preferences'}
+          </button>
+          {savedPrefs && (
+            <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+              <CheckCircle2 className="w-4 h-4" />
+              Preferences saved
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Sign Out */}
       <div className="card p-6">

@@ -7,6 +7,8 @@ import {
   query,
   where,
   onSnapshot,
+  doc,
+  getDoc,
 } from 'firebase/firestore'
 import {
   MapPin,
@@ -20,6 +22,7 @@ import {
   FileText,
   Settings,
   CalendarDays,
+  Award,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import clsx from 'clsx'
@@ -41,6 +44,8 @@ export default function Profile() {
   const [myRequests, setMyRequests] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [loadingRequests, setLoadingRequests] = useState(true)
+  const [activityTab, setActivityTab] = useState('all')
+  const [volunteerDoc, setVolunteerDoc] = useState(null)
 
   useEffect(() => {
     if (!currentUser) return
@@ -96,12 +101,28 @@ export default function Profile() {
     }
   }, [currentUser])
 
+  useEffect(() => {
+    if (!currentUser) return
+    const ref = doc(db, 'volunteers', currentUser.uid)
+    getDoc(ref).then((snap) => {
+      if (snap.exists()) setVolunteerDoc({ id: snap.id, ...snap.data() })
+      else setVolunteerDoc(null)
+    }).catch(() => {})
+  }, [currentUser])
+
   const allActivity = [...myPosts, ...myRequests].sort(
     (a, b) => b.createdAt - a.createdAt
   )
 
   const isLoadingAll = loadingPosts || loadingRequests
   const completedRequests = myRequests.filter((r) => r.status === 'completed').length
+  const totalLikesReceived = myPosts.reduce((acc, p) => acc + (p.likes?.length || 0), 0)
+
+  const tabActivity = activityTab === 'posts'
+    ? myPosts
+    : activityTab === 'requests'
+      ? myRequests
+      : allActivity
 
   const handleActivityClick = (item) => {
     if (item.type === 'post') {
@@ -168,6 +189,12 @@ export default function Profile() {
                   Admin
                 </span>
               )}
+              {volunteerDoc && (
+                <span className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full mt-1 font-medium">
+                  <Award className="w-3 h-3" />
+                  Volunteer{volunteerDoc.helpCount > 0 ? ` · ${volunteerDoc.helpCount} helped` : ''}
+                </span>
+              )}
               {displayUser?.createdAt && (
                 <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
                   <CalendarDays className="w-3 h-3" />
@@ -192,18 +219,19 @@ export default function Profile() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+        <div className="grid grid-cols-4 gap-3 mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
           {[
             { icon: MessageCircle, label: 'Posts', value: myPosts.length },
             { icon: Heart, label: 'Requests', value: myRequests.length },
             { icon: CheckCircle2, label: 'Completed', value: completedRequests },
+            { icon: Heart, label: 'Likes Received', value: totalLikesReceived },
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="text-center">
-              <Icon className="w-5 h-5 text-primary-600 dark:text-primary-400 mx-auto mb-1" />
+              <Icon className="w-4 h-4 text-primary-600 dark:text-primary-400 mx-auto mb-1" />
               {isLoadingAll ? (
-                <div className="h-7 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-1" />
+                <div className="h-6 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-1" />
               ) : (
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{value}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{value}</p>
               )}
               <p className="text-xs text-gray-400">{label}</p>
             </div>
@@ -223,15 +251,36 @@ export default function Profile() {
 
       {/* My Activity */}
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-gray-900 dark:text-white">
             My Activity
             {!isLoadingAll && (
               <span className="ml-2 text-sm font-normal text-gray-400">
-                ({allActivity.length} {allActivity.length === 1 ? 'item' : 'items'})
+                ({tabActivity.length} {tabActivity.length === 1 ? 'item' : 'items'})
               </span>
             )}
           </h2>
+        </div>
+
+        {/* Activity tabs */}
+        <div className="flex items-center gap-1 mb-4 border-b border-gray-100 dark:border-gray-800">
+          {[
+            { id: 'all', label: `All (${allActivity.length})` },
+            { id: 'posts', label: `Posts (${myPosts.length})` },
+            { id: 'requests', label: `Help Requests (${myRequests.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActivityTab(tab.id)}
+              className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors -mb-px ${
+                activityTab === tab.id
+                  ? 'border-primary-600 text-primary-700 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {isLoadingAll ? (
@@ -247,11 +296,11 @@ export default function Profile() {
               </div>
             ))}
           </div>
-        ) : allActivity.length === 0 ? (
+        ) : tabActivity.length === 0 ? (
           <div className="text-center py-8">
             <FileText className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
             <p className="text-sm text-gray-400 dark:text-gray-500">
-              No posts or help requests yet.
+              {activityTab === 'posts' ? 'No posts yet.' : activityTab === 'requests' ? 'No help requests yet.' : 'No posts or help requests yet.'}
             </p>
             <div className="flex items-center justify-center gap-3 mt-3">
               <Link to="/" className="text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium">
@@ -265,7 +314,7 @@ export default function Profile() {
           </div>
         ) : (
           <div className="space-y-2">
-            {allActivity.map((item) => {
+            {tabActivity.map((item) => {
               const isPost = item.type === 'post'
               const statusInfo = !isPost ? (STATUS_STYLES[item.status] || STATUS_STYLES.pending) : null
 

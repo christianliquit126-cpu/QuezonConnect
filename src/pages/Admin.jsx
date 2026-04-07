@@ -69,6 +69,110 @@ function StatCard({ label, value, sub, color }) {
   )
 }
 
+function BroadcastPanel() {
+  const [msg, setMsg] = useState('')
+  const [link, setLink] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+  const [allUsers, setAllUsers] = useState([])
+  const MSG_MAX = 200
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
+      setAllUsers(snap.docs.map((d) => d.data()).filter((u) => u.role !== 'banned'))
+    })
+    return unsub
+  }, [])
+
+  const handleBroadcast = async () => {
+    if (!msg.trim()) { setError('Message is required.'); return }
+    if (msg.length > MSG_MAX) { setError(`Message must be ${MSG_MAX} characters or fewer.`); return }
+    setSending(true)
+    setError('')
+    try {
+      const batch = []
+      allUsers.forEach((u) => {
+        if (u.uid) {
+          batch.push(addDoc(collection(db, 'notifications'), {
+            recipientUid: u.uid,
+            type: 'system',
+            message: msg.trim(),
+            link: link.trim() || null,
+            read: false,
+            createdAt: serverTimestamp(),
+          }))
+        }
+      })
+      await Promise.all(batch)
+      setSent(true)
+      setMsg('')
+      setLink('')
+      setTimeout(() => setSent(false), 4000)
+    } catch (err) {
+      console.error('Broadcast error:', err)
+      setError('Failed to send broadcast. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="card p-5 space-y-4">
+      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+        <Megaphone className="w-4 h-4 text-primary-600" />
+        Broadcast System Notification
+      </h3>
+      <p className="text-xs text-gray-400">
+        Send a notification to all {allUsers.length} registered users (excluding banned accounts).
+      </p>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Message <span className="text-gray-400 font-normal">({msg.length}/{MSG_MAX})</span>
+          </label>
+          <textarea
+            value={msg}
+            onChange={(e) => { setMsg(e.target.value); setError('') }}
+            maxLength={MSG_MAX}
+            rows={2}
+            placeholder="Write your announcement..."
+            className="input-field resize-none text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Link (optional)
+          </label>
+          <input
+            type="text"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="e.g. /get-help"
+            className="input-field text-sm"
+          />
+        </div>
+        {error && <p className="text-xs text-red-500" role="alert">{error}</p>}
+        {sent && (
+          <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Broadcast sent to {allUsers.length} users.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleBroadcast}
+          disabled={sending || !msg.trim()}
+          className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+        >
+          {sending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {sending ? 'Sending...' : `Send to ${allUsers.length} users`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function OverviewTab({ users, requests, posts, updates, reports, volunteerCount }) {
   const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'open' || !r.status).length
   const resolvedRequests = requests.filter((r) => r.status === 'completed' || r.status === 'resolved').length
@@ -85,6 +189,8 @@ function OverviewTab({ users, requests, posts, updates, reports, volunteerCount 
         <StatCard label="Open Reports" value={openReports} sub="Needs attention" color={openReports > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'} />
         <StatCard label="Community Updates" value={updates.length} color="text-indigo-600 dark:text-indigo-400" />
       </div>
+
+      <BroadcastPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="card p-5">

@@ -18,8 +18,16 @@ import {
   limit,
 } from 'firebase/firestore'
 import { format, formatDistanceToNow, isToday, isYesterday, isSameDay } from 'date-fns'
-import { Send, Search, ArrowLeft, Users, Loader2, MessageCircle } from 'lucide-react'
+import { Send, Search, ArrowLeft, Users, Loader2, MessageCircle, Wifi, WifiOff } from 'lucide-react'
 import { createNotification } from '../services/notifications'
+
+const QUICK_REPLIES = [
+  'On my way!',
+  'How can I help?',
+  'Thank you!',
+  'I will call you shortly.',
+  'Can we meet here?',
+]
 
 function formatMsgTime(date) {
   if (!date) return ''
@@ -99,6 +107,7 @@ export default function Messages() {
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [sendError, setSendError] = useState('')
+  const [otherVolunteerStatus, setOtherVolunteerStatus] = useState(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const activeChatRef = useRef(null)
@@ -187,6 +196,19 @@ export default function Messages() {
       markChatAsRead(activeChat.chatId)
     }
   }, [activeChat?.chatId])
+
+  // Listen to the other participant's volunteer doc for online status
+  useEffect(() => {
+    if (!activeChat || !currentUser) { setOtherVolunteerStatus(null); return }
+    const otherId = activeChat.participants?.find((p) => p !== currentUser.uid)
+    if (!otherId) { setOtherVolunteerStatus(null); return }
+    const ref = doc(db, 'volunteers', otherId)
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) setOtherVolunteerStatus(snap.data())
+      else setOtherVolunteerStatus(null)
+    }, () => setOtherVolunteerStatus(null))
+    return unsub
+  }, [activeChat?.chatId, currentUser])
 
   const getChatId = (uid1, uid2) => [uid1, uid2].sort().join('_')
 
@@ -493,16 +515,34 @@ export default function Messages() {
                   >
                     <ArrowLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                   </button>
-                  <img
-                    src={other.avatar}
-                    alt={other.name}
-                    className="w-9 h-9 rounded-full object-cover"
-                  />
+                  <div className="relative shrink-0">
+                    <img
+                      src={other.avatar}
+                      alt={other.name}
+                      className="w-9 h-9 rounded-full object-cover"
+                    />
+                    {otherVolunteerStatus !== null && (
+                      <span
+                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-gray-900 ${
+                          otherVolunteerStatus.online ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                        aria-label={otherVolunteerStatus.online ? 'Volunteer available' : 'Volunteer unavailable'}
+                      />
+                    )}
+                  </div>
                   <div>
                     <p className="font-semibold text-sm text-gray-900 dark:text-white">
                       {other.name}
                     </p>
-                    <p className="text-xs text-gray-400">Community member</p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      {otherVolunteerStatus !== null ? (
+                        otherVolunteerStatus.online ? (
+                          <><Wifi className="w-3 h-3 text-green-500" /> Volunteer · Available</>
+                        ) : (
+                          <><WifiOff className="w-3 h-3 text-gray-400" /> Volunteer · Unavailable</>
+                        )
+                      ) : 'Community member'}
+                    </p>
                   </div>
                 </div>
               )
@@ -558,6 +598,19 @@ export default function Messages() {
 
             {/* Input */}
             <div className="border-t border-gray-100 dark:border-gray-800 shrink-0">
+              {/* Quick replies */}
+              <div className="flex items-center gap-1.5 px-4 pt-2 pb-0 overflow-x-auto">
+                {QUICK_REPLIES.map((qr) => (
+                  <button
+                    key={qr}
+                    type="button"
+                    onClick={() => setInput(qr)}
+                    className="shrink-0 text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors bg-white dark:bg-gray-900 whitespace-nowrap"
+                  >
+                    {qr}
+                  </button>
+                ))}
+              </div>
               {sendError && (
                 <p className="px-4 pt-2 text-xs text-red-500" role="alert">{sendError}</p>
               )}

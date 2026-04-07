@@ -15,6 +15,8 @@ import {
   Copy,
   CheckCheck,
   LogIn,
+  Pin,
+  PinOff,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -48,7 +50,7 @@ const REPORT_REASONS = [
   'Other',
 ]
 
-function PostMenu({ onEdit, onDelete, onClose }) {
+function PostMenu({ onEdit, onDelete, onPin, isPinned, isAdmin, onClose }) {
   const ref = useRef(null)
   useEffect(() => {
     const handleMouse = (e) => {
@@ -68,7 +70,7 @@ function PostMenu({ onEdit, onDelete, onClose }) {
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-8 z-20 w-36 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 overflow-hidden"
+      className="absolute right-0 top-8 z-20 w-40 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 overflow-hidden"
       role="menu"
       aria-label="Post options"
     >
@@ -81,6 +83,20 @@ function PostMenu({ onEdit, onDelete, onClose }) {
         <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
         Edit post
       </button>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={onPin}
+          role="menuitem"
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+        >
+          {isPinned ? (
+            <><PinOff className="w-3.5 h-3.5" aria-hidden="true" /> Unpin post</>
+          ) : (
+            <><Pin className="w-3.5 h-3.5" aria-hidden="true" /> Pin to top</>
+          )}
+        </button>
+      )}
       <button
         type="button"
         onClick={onDelete}
@@ -118,6 +134,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [saveError, setSaveError] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [commentError, setCommentError] = useState('')
+  const [editingCommentId, setEditingCommentId] = useState(null)
+  const [editCommentText, setEditCommentText] = useState('')
+  const [savingComment, setSavingComment] = useState(false)
 
   const isOwner = currentUser?.uid === post.uid
   const canControl = isOwner || isAdmin
@@ -315,6 +334,42 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     setReportSubmitting(false)
   }
 
+  const handlePin = async () => {
+    try {
+      await updateDoc(doc(db, 'posts', post.postId), { pinned: !post.pinned })
+    } catch (err) {
+      console.error('Pin post error:', err)
+    }
+    setMenuOpen(false)
+  }
+
+  const handleStartEditComment = (comment) => {
+    setEditingCommentId(comment.commentId)
+    setEditCommentText(comment.content)
+  }
+
+  const handleSaveCommentEdit = async (commentId) => {
+    const trimmed = editCommentText.trim()
+    if (!trimmed || trimmed.length > COMMENT_MAX) return
+    setSavingComment(true)
+    try {
+      await updateDoc(doc(db, 'posts', post.postId, 'comments', commentId), {
+        content: trimmed,
+        editedAt: serverTimestamp(),
+      })
+      setEditingCommentId(null)
+    } catch (err) {
+      console.error('Edit comment error:', err)
+    } finally {
+      setSavingComment(false)
+    }
+  }
+
+  const handleCancelCommentEdit = () => {
+    setEditingCommentId(null)
+    setEditCommentText('')
+  }
+
   const displayContent = isLong && !expanded
     ? post.content.slice(0, READ_MORE_LIMIT) + '…'
     : post.content
@@ -335,8 +390,14 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     <div
       className={`card overflow-hidden transition-opacity ${
         deleting ? 'opacity-50 pointer-events-none' : ''
-      }`}
+      } ${post.pinned ? 'ring-1 ring-primary-200 dark:ring-primary-800' : ''}`}
     >
+      {post.pinned && (
+        <div className="px-5 py-1.5 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-100 dark:border-primary-900/30 flex items-center gap-1.5">
+          <Pin className="w-3 h-3 text-primary-600 dark:text-primary-400" aria-hidden="true" />
+          <span className="text-xs font-medium text-primary-700 dark:text-primary-300">Pinned post</span>
+        </div>
+      )}
       {confirmDelete && (
         <div className="px-5 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-3">
           <p className="text-xs text-red-700 dark:text-red-400 flex-1">Delete this post? This cannot be undone.</p>
@@ -401,6 +462,9 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                     setMenuOpen(false)
                     setConfirmDelete(true)
                   }}
+                  onPin={handlePin}
+                  isPinned={!!post.pinned}
+                  isAdmin={isAdmin}
                   onClose={() => setMenuOpen(false)}
                 />
               )}
@@ -658,21 +722,74 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                     <span className="text-xs text-gray-400">
                       {formatDistanceToNow(c.createdAt, { addSuffix: true })}
                     </span>
+                    {c.editedAt && (
+                      <span className="text-xs text-gray-400 italic">· edited</span>
+                    )}
                   </div>
-                  {(currentUser?.uid === c.uid || isAdmin) && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteComment(c.commentId)}
-                      className="opacity-0 group-hover/comment:opacity-100 transition-opacity text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
-                      aria-label="Delete comment"
-                    >
-                      <Trash2 className="w-3 h-3" aria-hidden="true" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                    {currentUser?.uid === c.uid && editingCommentId !== c.commentId && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditComment(c)}
+                        className="text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
+                        aria-label="Edit comment"
+                      >
+                        <Pencil className="w-3 h-3" aria-hidden="true" />
+                      </button>
+                    )}
+                    {(currentUser?.uid === c.uid || isAdmin) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteComment(c.commentId)}
+                        className="text-gray-300 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400"
+                        aria-label="Delete comment"
+                      >
+                        <Trash2 className="w-3 h-3" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
-                  {c.content}
-                </p>
+                {editingCommentId === c.commentId ? (
+                  <div className="mt-1.5 space-y-1">
+                    <input
+                      type="text"
+                      value={editCommentText}
+                      onChange={(e) => setEditCommentText(e.target.value)}
+                      maxLength={COMMENT_MAX}
+                      className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveCommentEdit(c.commentId)
+                        if (e.key === 'Escape') handleCancelCommentEdit()
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveCommentEdit(c.commentId)}
+                        disabled={savingComment || !editCommentText.trim()}
+                        className="text-xs px-2 py-0.5 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {savingComment ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelCommentEdit}
+                        className="text-xs px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                      <span className={`text-xs ml-auto ${editCommentText.length >= COMMENT_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                        {COMMENT_MAX - editCommentText.length}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
+                    {c.content}
+                  </p>
+                )}
               </div>
             </div>
           ))}

@@ -13,6 +13,9 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  arrayUnion,
+  arrayRemove,
+  increment,
   limit,
 } from 'firebase/firestore'
 import {
@@ -29,11 +32,17 @@ import {
   AlertTriangle,
   Search,
   X,
+  Share2,
+  CheckCheck,
+  ThumbsUp,
+  Pencil,
+  Timer,
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, differenceInDays } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
 import ImageUpload from '../components/ImageUpload'
 import { logEvent } from '../services/analytics'
+import { createNotification } from '../services/notifications'
 import { HELP_CATEGORIES as CATEGORIES } from '../constants/categories'
 
 const URGENCY_LEVELS = [
@@ -67,6 +76,12 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ title: req.title, description: req.description, category: req.category })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [togglingAlsoNeed, setTogglingAlsoNeed] = useState(false)
 
   const urgency = URGENCY_LEVELS.find((u) => u.value === req.urgency) || URGENCY_LEVELS[0]
 
@@ -75,10 +90,28 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       ? haversine(userLocation.lat, userLocation.lng, req.lat, req.lng)
       : null
 
+  const daysOld = req.createdAt ? differenceInDays(new Date(), req.createdAt) : 0
+  const isStale = daysOld >= 7 && req.status === 'pending'
+
+  const alsoNeedBy = req.alsoNeedBy || []
+  const alsoNeedCount = alsoNeedBy.length
+  const iAlsoNeed = currentUser ? alsoNeedBy.includes(currentUser.uid) : false
+
   const handleStatusChange = useCallback(async (newStatus) => {
     await updateDoc(doc(db, 'helpRequests', req.requestId), { status: newStatus })
     logEvent('help_request_status_change', { requestId: req.requestId, status: newStatus })
-  }, [req.requestId])
+    if (req.uid && currentUser && req.uid !== currentUser.uid) {
+      createNotification({
+        recipientUid: req.uid,
+        type: 'help',
+        message: `Your help request "${req.title}" has been updated to ${newStatus.replace('_', ' ')}.`,
+        link: '/get-help',
+        senderUid: currentUser.uid,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar || null,
+      })
+    }
+  }, [req.requestId, req.uid, req.title, currentUser])
 
   const handleDelete = useCallback(async () => {
     setDeleteError('')
@@ -91,6 +124,65 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       setConfirmDelete(false)
     }
   }, [req.requestId])
+
+  const handleShare = useCallback(async () => {
+    const text = `Help needed: ${req.title} — ${req.description?.slice(0, 100)}${req.description?.length > 100 ? '...' : ''} | QC Community`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: req.title, text, url: window.location.origin + '/get-help' })
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {}
+    }
+  }, [req.title, req.description])
+
+  const handleAlsoNeed = useCallback(async () => {
+    if (!currentUser || togglingAlsoNeed) return
+    setTogglingAlsoNeed(true)
+    try {
+      if (iAlsoNeed) {
+        await updateDoc(doc(db, 'helpRequests', req.requestId), {
+          alsoNeedBy: arrayRemove(currentUser.uid),
+          alsoNeedCount: increment(-1),
+        })
+      } else {
+        await updateDoc(doc(db, 'helpRequests', req.requestId), {
+          alsoNeedBy: arrayUnion(currentUser.uid),
+          alsoNeedCount: increment(1),
+        })
+      }
+    } catch (err) {
+      console.error('AlsoNeed error:', err)
+    } finally {
+      setTogglingAlsoNeed(false)
+    }
+  }, [currentUser, req.requestId, iAlsoNeed, togglingAlsoNeed])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editForm.title.trim() || !editForm.description.trim()) {
+      setEditError('Title and description are required.')
+      return
+    }
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      await updateDoc(doc(db, 'helpRequests', req.requestId), {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        category: editForm.category,
+        editedAt: serverTimestamp(),
+      })
+      setEditing(false)
+    } catch {
+      setEditError('Failed to save changes. Please try again.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }, [req.requestId, editForm])
 
   return (
     <div className={`card p-5 space-y-3 transition-opacity ${deleting ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -107,10 +199,17 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{req.userName}</p>
             <p className="text-xs text-gray-400">
               {formatDistanceToNow(req.createdAt, { addSuffix: true })}
+              {req.editedAt && <span className="italic ml-1">· edited</span>}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {isStale && (
+            <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              <Timer className="w-3 h-3" />
+              Stale
+            </span>
+          )}
           {req.urgency && req.urgency !== 'normal' && (
             <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${urgency.cls}`}>
               <AlertTriangle className="w-3 h-3" />
@@ -126,14 +225,66 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
         </div>
       </div>
 
-      <div>
-        <h3 className="font-semibold text-gray-900 dark:text-white">{req.title}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-          {req.description}
-        </p>
-      </div>
+      {editing ? (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+              maxLength={100}
+              className="input-field text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              maxLength={500}
+              rows={3}
+              className="input-field text-sm resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+            <select
+              value={editForm.category}
+              onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+              className="input-field text-sm"
+            >
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          {editError && <p className="text-xs text-red-500">{editError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+              className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-60"
+            >
+              {savingEdit && <Loader2 className="w-3 h-3 animate-spin" />}
+              Save Changes
+            </button>
+            <button
+              onClick={() => { setEditing(false); setEditError('') }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h3 className="font-semibold text-gray-900 dark:text-white">{req.title}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+            {req.description}
+          </p>
+        </div>
+      )}
 
-      {req.imageURL && (
+      {req.imageURL && !editing && (
         <img
           src={req.imageURL}
           alt="Request"
@@ -154,14 +305,55 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
           </span>
         )}
         <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">
-          {req.category}
+          {editing ? editForm.category : req.category}
         </span>
+      </div>
+
+      {/* Action buttons row */}
+      <div className="flex items-center gap-2 pt-1 border-t border-gray-50 dark:border-gray-800">
+        {/* Also need this */}
+        {currentUser && !isOwner && req.status !== 'completed' && (
+          <button
+            type="button"
+            onClick={handleAlsoNeed}
+            disabled={togglingAlsoNeed}
+            title={iAlsoNeed ? 'Remove vote' : 'I also need this'}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-60 ${
+              iAlsoNeed
+                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
+                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-blue-300 hover:text-blue-500'
+            }`}
+          >
+            <ThumbsUp className="w-3 h-3" aria-hidden="true" />
+            {alsoNeedCount > 0 ? alsoNeedCount : ''}
+            {iAlsoNeed ? 'Also need' : 'Also need this'}
+          </button>
+        )}
+        {!currentUser && alsoNeedCount > 0 && (
+          <span className="flex items-center gap-1 text-xs text-gray-400">
+            <ThumbsUp className="w-3 h-3" />
+            {alsoNeedCount} also need this
+          </span>
+        )}
+
+        {/* Share button */}
+        <button
+          type="button"
+          onClick={handleShare}
+          className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 transition-colors ml-auto ${
+            copied
+              ? 'text-green-600 dark:text-green-400 border-green-200 dark:border-green-800'
+              : 'text-gray-500 dark:text-gray-400 hover:border-primary-300 hover:text-primary-500'
+          }`}
+        >
+          {copied ? <><CheckCheck className="w-3 h-3" /> Copied</> : <><Share2 className="w-3 h-3" /> Share</>}
+        </button>
       </div>
 
       {isOwner ? (
         <div className="flex flex-col gap-2">
           <div className="flex gap-2 flex-wrap">
-            {req.status !== 'in_progress' && (
+            {req.status !== 'in_progress' && !editing && (
               <button
                 onClick={() => handleStatusChange('in_progress')}
                 className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
@@ -169,7 +361,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
                 Mark In Progress
               </button>
             )}
-            {req.status !== 'completed' && (
+            {req.status !== 'completed' && !editing && (
               <button
                 onClick={() => handleStatusChange('completed')}
                 className="text-xs px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
@@ -177,7 +369,16 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
                 Mark Completed
               </button>
             )}
-            {!confirmDelete && (
+            {!editing && !confirmDelete && (
+              <button
+                onClick={() => { setEditing(true); setEditForm({ title: req.title, description: req.description, category: req.category }) }}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-1"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </button>
+            )}
+            {!confirmDelete && !editing && (
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={deleting}
@@ -211,7 +412,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
           )}
         </div>
       ) : (
-        currentUser && req.status !== 'completed' && (
+        currentUser && req.status !== 'completed' && !editing && (
           <button
             type="button"
             onClick={() => onOfferHelp(req)}
