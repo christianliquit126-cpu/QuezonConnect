@@ -280,11 +280,8 @@ export default function Settings() {
           <textarea
             id="settings-bio"
             value={form.bio}
-            onChange={(e) => {
-              if (e.target.value.length <= 200) {
-                setForm((f) => ({ ...f, bio: e.target.value }))
-              }
-            }}
+            onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+            maxLength={200}
             className="input-field resize-none"
             rows={3}
             placeholder="Tell the community a little about yourself…"

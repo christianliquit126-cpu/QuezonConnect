@@ -1,7 +1,15 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 
-export const createNotification = async ({ recipientUid, type, message, link = '', senderName = '', senderAvatar = '' }) => {
+export const createNotification = async ({
+  recipientUid,
+  type,
+  message,
+  link = '',
+  senderUid = '',
+  senderName = '',
+  senderAvatar = '',
+}) => {
   if (!recipientUid) return
   try {
     await addDoc(collection(db, 'notifications'), {
@@ -9,6 +17,7 @@ export const createNotification = async ({ recipientUid, type, message, link = '
       type,
       message,
       link,
+      senderUid,
       senderName,
       senderAvatar,
       read: false,

@@ -97,6 +97,7 @@ function PostMenu({ onEdit, onDelete, onClose }) {
 export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin }) {
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState([])
+  const [commentsLimit, setCommentsLimit] = useState(10)
   const [commentText, setCommentText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
@@ -631,7 +632,16 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
               No comments yet. Be the first!
             </p>
           )}
-          {comments.map((c) => (
+          {comments.length > commentsLimit && (
+            <button
+              type="button"
+              onClick={() => setCommentsLimit((n) => n + 10)}
+              className="text-xs text-primary-600 dark:text-primary-400 font-medium hover:underline w-full text-center py-1"
+            >
+              Load {comments.length - commentsLimit} earlier comment{comments.length - commentsLimit !== 1 ? 's' : ''}
+            </button>
+          )}
+          {comments.slice(-commentsLimit).map((c) => (
             <div key={c.commentId} className="flex gap-2.5 group/comment">
               <img
                 src={c.userAvatar || avatarFallback(c.userName)}
@@ -700,8 +710,8 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                     )}
                   </button>
                 </div>
-                {commentText.length >= COMMENT_MAX * 0.8 && (
-                  <p className={`text-xs text-right ${commentText.length >= COMMENT_MAX ? 'text-red-500' : 'text-amber-500'}`} aria-live="polite">
+                {commentText.length > 0 && (
+                  <p className={`text-xs text-right ${commentText.length >= COMMENT_MAX ? 'text-red-500' : commentText.length >= COMMENT_MAX * 0.8 ? 'text-amber-500' : 'text-gray-400 dark:text-gray-500'}`} aria-live="polite">
                     {COMMENT_MAX - commentText.length} remaining
                   </p>
                 )}

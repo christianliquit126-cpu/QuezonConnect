@@ -69,7 +69,7 @@ function StatCard({ label, value, sub, color }) {
   )
 }
 
-function OverviewTab({ users, requests, posts, updates, reports }) {
+function OverviewTab({ users, requests, posts, updates, reports, volunteerCount }) {
   const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'open' || !r.status).length
   const resolvedRequests = requests.filter((r) => r.status === 'completed' || r.status === 'resolved').length
   const admins = users.filter((u) => u.role === 'admin').length
@@ -77,11 +77,13 @@ function OverviewTab({ users, requests, posts, updates, reports }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Total Users" value={users.length} sub={`${admins} admin${admins !== 1 ? 's' : ''}`} color="text-primary-600 dark:text-primary-400" />
         <StatCard label="Help Requests" value={requests.length} sub={`${openRequests} open · ${resolvedRequests} resolved`} color="text-yellow-600 dark:text-yellow-400" />
         <StatCard label="Community Posts" value={posts.length} color="text-purple-600 dark:text-purple-400" />
+        <StatCard label="Volunteers" value={volunteerCount} sub="Registered helpers" color="text-green-600 dark:text-green-400" />
         <StatCard label="Open Reports" value={openReports} sub="Needs attention" color={openReports > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'} />
+        <StatCard label="Community Updates" value={updates.length} color="text-indigo-600 dark:text-indigo-400" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -851,6 +853,7 @@ export default function Admin() {
   const [updates, setUpdates] = useState([])
   const [reports, setReports] = useState([])
   const [resources, setResources] = useState([])
+  const [volunteers, setVolunteers] = useState([])
   const [dataLoading, setDataLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -907,6 +910,12 @@ export default function Admin() {
       }, () => {})
     )
 
+    unsubs.push(
+      onSnapshot(collection(db, 'volunteers'), (snap) => {
+        setVolunteers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      }, () => {})
+    )
+
     return () => unsubs.forEach((u) => u())
   }, [isAdmin])
 
@@ -925,7 +934,7 @@ export default function Admin() {
   const openReports = reports.filter((r) => !r.status || r.status === 'open').length
 
   const tabContent = {
-    overview: <OverviewTab users={users} requests={requests} posts={posts} updates={updates} reports={reports} />,
+    overview: <OverviewTab users={users} requests={requests} posts={posts} updates={updates} reports={reports} volunteerCount={volunteers.length} />,
     requests: <RequestsTab requests={requests} />,
     updates: <UpdatesTab updates={updates} />,
     users: <UsersTab users={users} />,

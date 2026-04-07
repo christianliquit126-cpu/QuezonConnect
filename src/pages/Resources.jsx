@@ -21,6 +21,8 @@ import {
   Loader2,
   BookOpen,
   XCircle,
+  Copy,
+  Check,
 } from 'lucide-react'
 
 const SEED_RESOURCES = [
@@ -197,6 +199,15 @@ export default function Resources() {
   const [search, setSearch] = useState(initialQ)
   const [category, setCategory] = useState('All')
   const [selected, setSelected] = useState(null)
+  const [copiedHotline, setCopiedHotline] = useState(null)
+
+  const handleCopyHotline = (e, number) => {
+    e.preventDefault()
+    navigator.clipboard.writeText(number).then(() => {
+      setCopiedHotline(number)
+      setTimeout(() => setCopiedHotline(null), 2000)
+    }).catch(() => {})
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(loc.search)
@@ -349,11 +360,23 @@ export default function Resources() {
               <div className="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center justify-center shrink-0">
                 <Phone className="w-5 h-5 text-red-500" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{h.name}</p>
                 <p className="text-sm text-primary-600 dark:text-primary-400 font-mono font-bold">{h.number}</p>
                 <p className="text-xs text-gray-400">{h.desc}</p>
               </div>
+              <button
+                type="button"
+                onClick={(e) => handleCopyHotline(e, h.number)}
+                className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Copy number"
+              >
+                {copiedHotline === h.number ? (
+                  <Check className="w-3.5 h-3.5 text-green-500" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
             </a>
           ))}
         </div>

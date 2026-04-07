@@ -177,7 +177,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
                 Mark Completed
               </button>
             )}
-            {req.status !== 'completed' && !confirmDelete && (
+            {!confirmDelete && (
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={deleting}
@@ -250,12 +250,13 @@ export default function GetHelp() {
   const [myRequestsOnly, setMyRequestsOnly] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [imageUrl, setImageUrl] = useState(null)
+  const [displayLimit, setDisplayLimit] = useState(20)
 
   const TITLE_MAX = 100
   const DESC_MAX = 500
 
   useEffect(() => {
-    const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(100))
+    const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(200))
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -329,6 +330,10 @@ export default function GetHelp() {
   const handleOfferHelp = useCallback((req) => {
     navigate(`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName)}&avatar=${encodeURIComponent(req.userAvatar || '')}`)
   }, [navigate])
+
+  useEffect(() => {
+    setDisplayLimit(20)
+  }, [filter, categoryFilter, myRequestsOnly, keyword, distanceFilter])
 
   const URGENCY_ORDER = { emergency: 0, urgent: 1, normal: 2 }
 
@@ -655,7 +660,7 @@ export default function GetHelp() {
 
       {!loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map((req) => (
+          {filtered.slice(0, displayLimit).map((req) => (
             <HelpRequestCard
               key={req.requestId}
               req={req}
@@ -672,6 +677,17 @@ export default function GetHelp() {
                   ? 'No requests within 10 km of your location.'
                   : 'No requests found.'}
               </p>
+            </div>
+          )}
+          {filtered.length > displayLimit && (
+            <div className="col-span-2 text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setDisplayLimit((n) => n + 20)}
+                className="text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline"
+              >
+                Show more ({filtered.length - displayLimit} remaining)
+              </button>
             </div>
           )}
         </div>

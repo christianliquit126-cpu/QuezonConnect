@@ -48,9 +48,14 @@ export default function CommunityFeed() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
+  const [displayLimit, setDisplayLimit] = useState(20)
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(75))
+    setDisplayLimit(20)
+  }, [filter])
+
+  useEffect(() => {
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(200))
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -158,7 +163,7 @@ export default function CommunityFeed() {
         </div>
       )}
 
-      {filtered.map((post) => (
+      {filtered.slice(0, displayLimit).map((post) => (
         <PostCard
           key={post.postId}
           post={post}
@@ -168,6 +173,18 @@ export default function CommunityFeed() {
           isAdmin={isAdmin}
         />
       ))}
+
+      {filtered.length > displayLimit && (
+        <div className="text-center pt-2">
+          <button
+            type="button"
+            onClick={() => setDisplayLimit((n) => n + 20)}
+            className="text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline"
+          >
+            Load more ({filtered.length - displayLimit} more posts)
+          </button>
+        </div>
+      )}
     </div>
   )
 }

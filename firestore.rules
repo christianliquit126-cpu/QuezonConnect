@@ -44,8 +44,10 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.content.size() <= 1000;
+      // Prevent uid field from being changed on update
       allow update: if notBanned()
-        && (isOwner(resource.data.uid) || isAdmin());
+        && (isOwner(resource.data.uid) || isAdmin())
+        && (!('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
 
       match /comments/{commentId} {
@@ -64,8 +66,10 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.description.size() <= 2000;
+      // Prevent uid field from being changed on update
       allow update: if notBanned()
-        && (isOwner(resource.data.uid) || isAdmin());
+        && (isOwner(resource.data.uid) || isAdmin())
+        && (!('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
 
@@ -139,8 +143,9 @@ service cloud.firestore {
       allow create: if isAuth() && notBanned()
         && volId == request.auth.uid
         && request.resource.data.uid == request.auth.uid;
-      // Prevent uid field from being changed on update
-      allow update: if ((isOwner(resource.data.uid) && volId == request.auth.uid)
+      // Non-admin volunteers must not be banned to update their own doc;
+      // prevent uid field from being changed on update
+      allow update: if ((isOwner(resource.data.uid) && volId == request.auth.uid && notBanned())
         || isAdmin())
         && (!('uid' in request.resource.data)
             || request.resource.data.uid == resource.data.uid);

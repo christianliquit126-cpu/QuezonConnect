@@ -11,10 +11,12 @@ import {
   doc,
   setDoc,
   updateDoc,
+  increment,
+  arrayUnion,
   limit,
   getDoc,
 } from 'firebase/firestore'
-import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle } from 'lucide-react'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -49,6 +51,24 @@ export default function GiveHelp() {
   const [skillsError, setSkillsError] = useState('')
   const [registerError, setRegisterError] = useState('')
   const [noSkillsError, setNoSkillsError] = useState(false)
+  const [markingHelped, setMarkingHelped] = useState(null)
+
+  const handleMarkHelped = async (req) => {
+    if (!currentUser || !myVolunteerDoc) return
+    setMarkingHelped(req.requestId)
+    try {
+      await updateDoc(doc(db, 'helpRequests', req.requestId), {
+        helpedBy: arrayUnion(currentUser.uid),
+      })
+      await updateDoc(doc(db, 'volunteers', currentUser.uid), {
+        helpCount: increment(1),
+      })
+    } catch (err) {
+      console.error('Mark helped error:', err)
+    } finally {
+      setMarkingHelped(null)
+    }
+  }
 
   // Listen to the volunteers leaderboard (all volunteers, ordered by help count)
   useEffect(() => {
@@ -395,12 +415,31 @@ export default function GiveHelp() {
                     </div>
                   </div>
                 </div>
-                <Link
-                  to={`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName || '')}&avatar=${encodeURIComponent(req.userAvatar || '')}`}
-                  className="btn-primary text-xs shrink-0 px-3 py-1.5"
-                >
-                  Help
-                </Link>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <Link
+                    to={`/messages?startChat=${req.uid}&name=${encodeURIComponent(req.userName || '')}&avatar=${encodeURIComponent(req.userAvatar || '')}`}
+                    className="btn-primary text-xs px-3 py-1.5"
+                  >
+                    Help
+                  </Link>
+                  {myVolunteerDoc && currentUser && currentUser.uid !== req.uid && (
+                    req.helpedBy?.includes(currentUser.uid) ? (
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Helped
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkHelped(req)}
+                        disabled={markingHelped === req.requestId}
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors font-medium"
+                      >
+                        {markingHelped === req.requestId ? 'Saving...' : 'Mark as Helped'}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             ))}
             {openRequests.length === 0 && (
