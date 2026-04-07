@@ -66,6 +66,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth() && notBanned()
         && request.resource.data.uid == request.auth.uid
+        && request.resource.data.title.size() <= 100
         && request.resource.data.description.size() <= 2000;
       // Owner/admin can update any field (except uid)
       allow update: if notBanned()
@@ -74,6 +75,9 @@ service cloud.firestore {
       // Any authenticated non-banned user can toggle alsoNeedBy votes
       allow update: if isAuth() && notBanned()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['alsoNeedBy', 'alsoNeedCount']);
+      // Any authenticated non-banned volunteer can mark helpedBy
+      allow update: if isAuth() && notBanned()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['helpedBy']);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
 

@@ -17,8 +17,10 @@ import {
   LogIn,
   Pin,
   PinOff,
+  Clock,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { LightboxTrigger } from './ImageLightbox'
 import {
   collection,
   query,
@@ -40,6 +42,14 @@ const avatarFallback = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=100`
 
 const READ_MORE_LIMIT = 300
+
+function getReadingTime(text) {
+  if (!text) return null
+  const words = text.trim().split(/\s+/).length
+  if (words < 100) return null
+  const minutes = Math.ceil(words / 200)
+  return `${minutes} min read`
+}
 
 const REPORT_REASONS = [
   'Spam',
@@ -426,6 +436,12 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <span>{formatDistanceToNow(post.createdAt, { addSuffix: true })}</span>
               {post.editedAt && <span className="italic">· edited</span>}
+              {getReadingTime(post.content) && (
+                <span className="flex items-center gap-0.5">
+                  <Clock className="w-3 h-3" aria-hidden="true" />
+                  {getReadingTime(post.content)}
+                </span>
+              )}
               {post.userLocation && (
                 <>
                   <span className="text-gray-300 dark:text-gray-600">·</span>
@@ -544,13 +560,15 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       </div>
 
       {post.imageURL && !editing && (
-        <img
-          src={getThumbnailUrl(post.imageURL) || post.imageURL}
-          alt={`Post image by ${post.userName || 'community member'}`}
-          className="w-full object-cover max-h-80"
-          loading="lazy"
-          onError={(e) => { e.currentTarget.style.display = 'none' }}
-        />
+        <LightboxTrigger src={post.imageURL} alt={`Post image by ${post.userName || 'community member'}`}>
+          <img
+            src={getThumbnailUrl(post.imageURL) || post.imageURL}
+            alt={`Post image by ${post.userName || 'community member'}`}
+            className="w-full object-cover max-h-80"
+            loading="lazy"
+            onError={(e) => { e.currentTarget.style.display = 'none' }}
+          />
+        </LightboxTrigger>
       )}
 
       {/* Actions */}

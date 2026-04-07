@@ -84,6 +84,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState('')
   const [togglingAlsoNeed, setTogglingAlsoNeed] = useState(false)
+  const [renewing, setRenewing] = useState(false)
 
   const urgency = URGENCY_LEVELS.find((u) => u.value === req.urgency) || URGENCY_LEVELS[0]
 
@@ -186,8 +187,23 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
     }
   }, [req.requestId, editForm])
 
+  const handleRenew = useCallback(async () => {
+    setRenewing(true)
+    try {
+      await updateDoc(doc(db, 'helpRequests', req.requestId), {
+        createdAt: serverTimestamp(),
+      })
+    } catch (err) {
+      console.error('Renew error:', err)
+    } finally {
+      setRenewing(false)
+    }
+  }, [req.requestId])
+
+  const isEmergency = req.urgency === 'emergency' && req.status !== 'completed'
+
   return (
-    <div className={`card p-5 space-y-3 transition-opacity ${deleting ? 'opacity-50 pointer-events-none' : ''}`}>
+    <div className={`card p-5 space-y-3 transition-opacity ${deleting ? 'opacity-50 pointer-events-none' : ''} ${isEmergency ? 'emergency-pulse' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <img
@@ -378,6 +394,17 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
               >
                 <Pencil className="w-3 h-3" />
                 Edit
+              </button>
+            )}
+            {isStale && !editing && !confirmDelete && (
+              <button
+                onClick={handleRenew}
+                disabled={renewing}
+                title="Reset the date on this request so it no longer appears stale"
+                className="text-xs px-3 py-1.5 rounded-lg border border-primary-200 dark:border-primary-800 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors flex items-center gap-1 disabled:opacity-60"
+              >
+                {renewing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Timer className="w-3 h-3" />}
+                Renew
               </button>
             )}
             {!confirmDelete && !editing && (

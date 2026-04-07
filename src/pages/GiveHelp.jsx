@@ -489,8 +489,22 @@ export default function GiveHelp() {
           )}
         </div>
         {loading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 text-primary-600 animate-spin" aria-label="Loading requests" />
+          <div className="space-y-3" aria-busy="true" aria-label="Loading requests">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="card p-4 flex items-start gap-4 animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
+                  <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-full" />
+                  <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-4/5" />
+                  <div className="flex gap-3 mt-1">
+                    <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-20" />
+                    <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-16" />
+                  </div>
+                </div>
+                <div className="w-14 h-7 bg-gray-200 dark:bg-gray-700 rounded-lg shrink-0" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="space-y-3">

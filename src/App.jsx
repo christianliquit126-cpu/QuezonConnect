@@ -1,13 +1,16 @@
-import React, { Suspense, lazy, useEffect } from 'react'
+import React, { Suspense, lazy, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { LocationProvider } from './context/LocationContext'
+import { ToastProvider } from './context/ToastContext'
 import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
+import Footer from './components/Footer'
 import OfflineBanner from './components/OfflineBanner'
 import BackToTop from './components/BackToTop'
 import Home from './pages/Home'
+import NotFound from './pages/NotFound'
 import FirebaseSetup from './components/FirebaseSetup'
 import { Loader2 } from 'lucide-react'
 
@@ -16,6 +19,25 @@ function ScrollToTop() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [pathname])
+  return null
+}
+
+function GlobalKeyboardShortcuts() {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable
+      if (e.key === '/' && !isEditable && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        const searchInputs = document.querySelectorAll('input[type="search"], input[placeholder*="Search"], input[placeholder*="search"]')
+        if (searchInputs.length > 0) {
+          searchInputs[0].focus()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
   return null
 }
 
@@ -52,27 +74,31 @@ const AppRoutes = () => {
   const { isLoggedIn } = useAuth()
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
       <ScrollToTop />
+      <GlobalKeyboardShortcuts />
       <Navbar />
       <OfflineBanner />
       <BackToTop />
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
-          <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
-          <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
-          <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/map" element={<MapView />} />
-          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+      <div className="flex-1">
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
+            <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
+            <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
+            <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
+            <Route path="/resources" element={<Resources />} />
+            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/map" element={<MapView />} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </div>
+      <Footer />
     </div>
   )
 }
@@ -90,9 +116,11 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <LocationProvider>
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <AppRoutes />
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <AppRoutes />
+            </BrowserRouter>
+          </ToastProvider>
         </LocationProvider>
       </AuthProvider>
     </ThemeProvider>
