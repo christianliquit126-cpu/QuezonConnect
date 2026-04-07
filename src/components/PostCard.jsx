@@ -142,6 +142,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [reportDetail, setReportDetail] = useState('')
   const [reportSubmitting, setReportSubmitting] = useState(false)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [likeAnimating, setLikeAnimating] = useState(false)
   const commentInputRef = useRef(null)
   const [saveError, setSaveError] = useState('')
   const [deleteError, setDeleteError] = useState('')
@@ -195,6 +196,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
       setShowLoginPrompt(true)
       setTimeout(() => setShowLoginPrompt(false), 2500)
       return
+    }
+    if (!liked) {
+      setLikeAnimating(true)
+      setTimeout(() => setLikeAnimating(false), 450)
     }
     onLike?.(post.postId)
     if (!liked && post.uid && post.uid !== currentUser.uid) {
@@ -604,7 +609,10 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                 : 'text-gray-500 dark:text-gray-400 hover:text-red-500'
             }`}
           >
-            <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} aria-hidden="true" />
+            <Heart
+              className={`w-4 h-4 ${liked ? 'fill-current' : ''} ${likeAnimating ? 'heart-pop' : ''}`}
+              aria-hidden="true"
+            />
             <span aria-hidden="true">{likeCount}</span>
           </button>
           {showLoginPrompt && (

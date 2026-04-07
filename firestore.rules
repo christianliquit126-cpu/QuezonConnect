@@ -157,6 +157,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── Public stats cache (aggregate counters, admin-write only) ──
+    match /stats/{statId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ── Volunteers ────────────────────────────────────────────────
     // Document ID must match the authenticated user's UID
     match /volunteers/{volId} {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   collection,
   query,
@@ -16,7 +16,7 @@ import { db } from '../firebase'
 import { useAuth } from '../context/AuthContext'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
-import { Inbox, Search, X } from 'lucide-react'
+import { Inbox, Search, X, ArrowUp } from 'lucide-react'
 import { logEvent } from '../services/analytics'
 import { FEED_FILTERS as FILTERS } from '../constants/categories'
 
@@ -52,6 +52,9 @@ export default function CommunityFeed() {
   const [filter, setFilter] = useState('All')
   const [displayLimit, setDisplayLimit] = useState(20)
   const [feedSearch, setFeedSearch] = useState('')
+  const [newPostCount, setNewPostCount] = useState(0)
+  const latestTimestampRef = useRef(null)
+  const initialLoadRef = useRef(true)
 
   useEffect(() => {
     setDisplayLimit(20)
@@ -69,6 +72,26 @@ export default function CommunityFeed() {
           editedAt: d.data().editedAt?.toDate() || null,
           likes: d.data().likes || [],
         }))
+
+        if (initialLoadRef.current) {
+          initialLoadRef.current = false
+          latestTimestampRef.current = data[0]?.createdAt || null
+          setPosts(data)
+          setLoading(false)
+          return
+        }
+
+        const newestTs = data[0]?.createdAt || null
+        if (newestTs && latestTimestampRef.current && newestTs > latestTimestampRef.current) {
+          const added = data.filter(
+            (p) => p.createdAt > latestTimestampRef.current && p.uid !== displayUser?.uid
+          )
+          if (added.length > 0) {
+            setNewPostCount((n) => n + added.length)
+          }
+          latestTimestampRef.current = newestTs
+        }
+
         setPosts(data)
         setLoading(false)
       },
@@ -76,6 +99,11 @@ export default function CommunityFeed() {
     )
     return unsub
   }, [])
+
+  const handleShowNewPosts = () => {
+    setNewPostCount(0)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const handleCreatePost = useCallback(async ({ content, category, imageURL = null }) => {
     if (!displayUser) return
@@ -109,7 +137,6 @@ export default function CommunityFeed() {
     setPosts((prev) => prev.filter((p) => p.postId !== postId))
   }, [])
 
-  // Memoize filtered posts to avoid re-filtering on every render
   const filtered = useMemo(() => {
     let result = filter === 'All' || filter === 'Trending'
       ? posts
@@ -131,7 +158,6 @@ export default function CommunityFeed() {
         return scoreB - scoreA
       })
     } else {
-      // Pinned posts always appear first
       result = [...result].sort((a, b) => {
         if (a.pinned && !b.pinned) return -1
         if (!a.pinned && b.pinned) return 1
@@ -144,6 +170,17 @@ export default function CommunityFeed() {
 
   return (
     <div className="space-y-4">
+      {newPostCount > 0 && (
+        <button
+          type="button"
+          onClick={handleShowNewPosts}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl shadow-md transition-colors new-posts-banner"
+        >
+          <ArrowUp className="w-4 h-4" aria-hidden="true" />
+          {newPostCount} new {newPostCount === 1 ? 'post' : 'posts'} — tap to refresh
+        </button>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Community Feed</h2>
@@ -158,9 +195,9 @@ export default function CommunityFeed() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`shrink-0 flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full transition-colors active:scale-95 ${
+                className={`shrink-0 flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full transition-all duration-200 active:scale-95 ${
                   filter === f
-                    ? 'bg-primary-600 text-white'
+                    ? 'bg-primary-600 text-white shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
@@ -176,7 +213,6 @@ export default function CommunityFeed() {
         </div>
       </div>
 
-      {/* Feed keyword search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" aria-hidden="true" />
         <input

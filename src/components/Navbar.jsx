@@ -57,6 +57,13 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const handleLogout = async () => {
     if (loggingOut) return
@@ -75,13 +82,11 @@ export default function Navbar() {
   const unreadMessages = useUnreadMessages(isLoggedIn ? currentUser : null)
   const dropdownRef = useRef(null)
 
-  // Close both menus on route change
   useEffect(() => {
     setMobileOpen(false)
     setProfileOpen(false)
   }, [location.pathname])
 
-  // Close profile dropdown on outside click and Escape key
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -121,10 +126,15 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800" role="navigation" aria-label="Main navigation">
+    <nav
+      className={`sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 transition-shadow duration-300 ${
+        scrolled ? 'shadow-md dark:shadow-gray-950/60' : ''
+      }`}
+      role="navigation"
+      aria-label="Main navigation"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="QC Community — home">
             <img src="/logo.png" alt="" className="h-9 w-9 object-contain" aria-hidden="true" />
             <span className="font-bold text-gray-900 dark:text-white text-lg">
@@ -132,7 +142,6 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-0.5">
             {navLinks.map(({ to, label }) => (
               <Link
@@ -150,12 +159,10 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Right side */}
           <div className="flex items-center gap-2">
-            {/* Search */}
             <div
               role="search"
-              className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5"
+              className="hidden sm:flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition-all"
             >
               <button
                 type="button"
@@ -175,7 +182,7 @@ export default function Navbar() {
                 aria-label="Search resources"
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none w-36"
               />
-              {search && (
+              {search ? (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
@@ -184,10 +191,13 @@ export default function Navbar() {
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
+              ) : (
+                <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 dark:text-gray-500 border border-gray-200 dark:border-gray-600 rounded font-mono leading-none">
+                  /
+                </kbd>
               )}
             </div>
 
-            {/* Theme toggle */}
             <button
               type="button"
               onClick={toggleTheme}
@@ -199,7 +209,6 @@ export default function Navbar() {
 
             {isLoggedIn ? (
               <>
-                {/* Messages with unread badge */}
                 <Link
                   to="/messages"
                   className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -207,22 +216,19 @@ export default function Navbar() {
                 >
                   <MessageCircle className="w-5 h-5" aria-hidden="true" />
                   {unreadMessages > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5" aria-hidden="true">
+                    <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5 animate-badge-pop" aria-hidden="true">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
                     </span>
                   )}
                 </Link>
 
-                {/* Notifications */}
                 <NotificationBell />
 
-                {/* Get Help CTA */}
                 <Link to="/get-help" className="hidden sm:flex btn-primary text-sm items-center gap-1.5">
                   <HelpCircle className="w-4 h-4" aria-hidden="true" />
                   Get Help
                 </Link>
 
-                {/* Profile dropdown */}
                 <div className="relative" ref={dropdownRef}>
                   <button
                     type="button"
@@ -235,14 +241,14 @@ export default function Navbar() {
                     <img
                       src={displayUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100`}
                       alt=""
-                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800"
+                      className="w-8 h-8 rounded-full object-cover border-2 border-primary-200 dark:border-primary-800 transition-transform hover:scale-105"
                       onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUser?.name || 'U')}&background=2563eb&color=fff&size=100` }}
                     />
                   </button>
 
                   {profileOpen && (
                     <div
-                      className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 z-50"
+                      className="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg py-1 z-50 dropdown-enter"
                       role="menu"
                       aria-label="Account options"
                     >
@@ -303,7 +309,6 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Mobile menu toggle */}
             <button
               type="button"
               className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -318,9 +323,14 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div id="mobile-menu" className="md:hidden bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 py-3 space-y-1">
+      <div
+        id="mobile-menu"
+        className={`md:hidden border-t border-gray-100 dark:border-gray-800 overflow-hidden transition-all duration-300 ease-in-out ${
+          mobileOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+        }`}
+        aria-hidden={!mobileOpen}
+      >
+        <div className="bg-white dark:bg-gray-900 px-4 py-3 space-y-1">
           {navLinks.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
@@ -385,7 +395,7 @@ export default function Navbar() {
             </>
           )}
         </div>
-      )}
+      </div>
     </nav>
   )
 }

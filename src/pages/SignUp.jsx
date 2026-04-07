@@ -201,20 +201,31 @@ export default function SignUp() {
                 </button>
               </div>
               {strength && (
-                <div className="mt-1.5 space-y-1" aria-live="polite">
-                  <div className="flex gap-1" role="meter" aria-label="Password strength">
-                    {['weak', 'fair', 'good', 'strong'].map((level, i) => (
-                      <div
-                        key={level}
-                        className={`h-1 flex-1 rounded-full transition-colors ${
-                          ['weak', 'fair', 'good', 'strong'].indexOf(strength.level) >= i
-                            ? strength.color
-                            : 'bg-gray-200 dark:bg-gray-700'
-                        }`}
-                      />
-                    ))}
+                <div className="mt-2 space-y-1.5" aria-live="polite">
+                  <div className="flex gap-1" role="meter" aria-label={`Password strength: ${strength.label}`}>
+                    {['weak', 'fair', 'good', 'strong'].map((level, i) => {
+                      const levelIdx = ['weak', 'fair', 'good', 'strong'].indexOf(strength.level)
+                      return (
+                        <div
+                          key={level}
+                          className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                            levelIdx >= i ? strength.color : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
+                        />
+                      )
+                    })}
                   </div>
-                  <p className="text-xs text-gray-400">{strength.label}</p>
+                  <div className="flex items-center justify-between">
+                    <p className={`text-xs font-medium ${
+                      strength.level === 'weak' ? 'text-red-500' :
+                      strength.level === 'fair' ? 'text-yellow-500' :
+                      strength.level === 'good' ? 'text-blue-500' :
+                      'text-green-500'
+                    }`}>{strength.label}</p>
+                    {strength.level !== 'strong' && (
+                      <p className="text-xs text-gray-400">Add numbers and capitals for a stronger password</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react'
+import React, { Suspense, lazy, useEffect, useRef, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext'
 import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import MobileNav from './components/MobileNav'
 import OfflineBanner from './components/OfflineBanner'
 import EmailVerificationBanner from './components/EmailVerificationBanner'
 import BackToTop from './components/BackToTop'
@@ -41,6 +42,37 @@ function GlobalKeyboardShortcuts() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
   return null
+}
+
+function ScrollReveal() {
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+    )
+    const elements = document.querySelectorAll('.reveal')
+    elements.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  })
+  return null
+}
+
+function PageTransition({ children }) {
+  const { pathname } = useLocation()
+  const [key, setKey] = React.useState(pathname)
+  useEffect(() => { setKey(pathname) }, [pathname])
+  return (
+    <div key={key} className="page-enter">
+      {children}
+    </div>
+  )
 }
 
 const Login     = lazy(() => import('./pages/Login'))
@@ -79,29 +111,33 @@ const AppRoutes = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
       <ScrollToTop />
       <GlobalKeyboardShortcuts />
+      <ScrollReveal />
       <Navbar />
       <OfflineBanner />
       <EmailVerificationBanner />
       <BackToTop />
-      <div className="flex-1">
+      <div className="flex-1 pb-16 md:pb-0">
         <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
-            <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
-            <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
-            <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
-            <Route path="/resources" element={<Resources />} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/map" element={<MapView />} />
-            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <PageTransition>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <Login />} />
+              <Route path="/signup" element={isLoggedIn ? <Navigate to="/" replace /> : <SignUp />} />
+              <Route path="/get-help" element={<ProtectedRoute><GetHelp /></ProtectedRoute>} />
+              <Route path="/give-help" element={<ProtectedRoute><GiveHelp /></ProtectedRoute>} />
+              <Route path="/resources" element={<Resources />} />
+              <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/map" element={<MapView />} />
+              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </PageTransition>
         </Suspense>
       </div>
       <Footer />
+      <MobileNav />
     </div>
   )
 }
