@@ -43,7 +43,7 @@ function PostSkeleton() {
   )
 }
 
-const ALL_FILTERS = ['All', 'Trending', ...FILTERS.filter((f) => f !== 'All')]
+const ALL_FILTERS = ['All', 'Trending', 'Most Liked', ...FILTERS.filter((f) => f !== 'All')]
 
 export default function CommunityFeed() {
   const { displayUser, isLoggedIn, isAdmin } = useAuth()
@@ -138,7 +138,7 @@ export default function CommunityFeed() {
   }, [])
 
   const filtered = useMemo(() => {
-    let result = filter === 'All' || filter === 'Trending'
+    let result = filter === 'All' || filter === 'Trending' || filter === 'Most Liked'
       ? posts
       : posts.filter((p) => p.category === filter)
 
@@ -157,6 +157,8 @@ export default function CommunityFeed() {
         const scoreB = (b.likes?.length || 0) * 2 + (b.commentCount || 0)
         return scoreB - scoreA
       })
+    } else if (filter === 'Most Liked') {
+      result = [...result].sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0))
     } else {
       result = [...result].sort((a, b) => {
         if (a.pinned && !b.pinned) return -1
@@ -188,9 +190,9 @@ export default function CommunityFeed() {
             <span className="text-xs text-gray-400 font-normal">({posts.length} posts)</span>
           )}
         </div>
-        <div className="flex items-center gap-1 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
           {ALL_FILTERS.map((f) => {
-            const count = f === 'All' || f === 'Trending' ? posts.length : posts.filter((p) => p.category === f).length
+            const count = f === 'All' || f === 'Trending' || f === 'Most Liked' ? posts.length : posts.filter((p) => p.category === f).length
             return (
               <button
                 key={f}
@@ -202,7 +204,7 @@ export default function CommunityFeed() {
                 }`}
               >
                 {f}
-                {!loading && f !== 'Trending' && count > 0 && (
+                {!loading && f !== 'Trending' && f !== 'Most Liked' && count > 0 && (
                   <span className={`text-xs ${filter === f ? 'opacity-80' : 'opacity-60'}`}>
                     {count}
                   </span>
@@ -251,14 +253,14 @@ export default function CommunityFeed() {
           <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
             {feedSearch.trim()
               ? `No posts matching "${feedSearch}".`
-              : filter !== 'All' && filter !== 'Trending'
+              : filter !== 'All' && filter !== 'Trending' && filter !== 'Most Liked'
                 ? `No posts in "${filter}" yet.`
                 : 'No posts yet.'}
           </p>
           <p className="text-gray-400 dark:text-gray-500 text-xs">
             {feedSearch.trim()
               ? 'Try different keywords or clear your search.'
-              : filter !== 'All' && filter !== 'Trending'
+              : filter !== 'All' && filter !== 'Trending' && filter !== 'Most Liked'
                 ? 'Try another category or be the first to share!'
                 : 'Be the first to share something with the community!'}
           </p>

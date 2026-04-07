@@ -18,8 +18,8 @@ import {
   limit,
   getDoc,
 } from 'firebase/firestore'
-import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle, Medal, UserMinus, Search } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle, Medal, UserMinus, Search, Mail } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 
 const SKILL_OPTIONS = [
@@ -39,6 +39,7 @@ const avatarFallback = (name) =>
 export default function GiveHelp() {
   usePageTitle('Give Help')
   const { displayUser, currentUser } = useAuth()
+  const navigate = useNavigate()
   const [skills, setSkills] = useState([])
   const [volunteers, setVolunteers] = useState([])
   const [openRequests, setOpenRequests] = useState([])
@@ -703,6 +704,17 @@ export default function GiveHelp() {
                   <p className="text-xs text-gray-400 dark:text-gray-500 italic leading-tight">
                     {v.note}
                   </p>
+                )}
+                {currentUser && v.id !== currentUser.uid && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/messages?uid=${v.id}`)}
+                    className="mt-1 flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/40 px-3 py-1.5 rounded-full transition-colors w-full justify-center"
+                    aria-label={`Send message to ${v.name}`}
+                  >
+                    <Mail className="w-3 h-3" aria-hidden="true" />
+                    Message
+                  </button>
                 )}
               </div>
               )

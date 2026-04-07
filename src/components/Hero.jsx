@@ -1,20 +1,46 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Search, Clock, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import EmergencyQuickMode from './EmergencyQuickMode'
 import useSearchHistory from '../hooks/useSearchHistory'
 import { trackSearch } from '../services/analytics'
+import { collection, query, where, getCountFromServer } from 'firebase/firestore'
+import { db } from '../firebase'
 
 const POPULAR_TAGS = ['Food Assistance', 'Medical Transport', 'School Supplies', 'Flood Help']
 
+function getTimeGreeting() {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return 'Good morning'
+  if (hour >= 12 && hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export default function Hero({ userName }) {
-  const [query, setQuery] = useState('')
+  const [query_text, setQueryText] = useState('')
   const navigate = useNavigate()
   const { history, save: saveSearch } = useSearchHistory()
+  const [openRequestCount, setOpenRequestCount] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchCount() {
+      try {
+        const snap = await getCountFromServer(
+          query(collection(db, 'helpRequests'), where('status', '!=', 'completed'))
+        )
+        if (!cancelled) setOpenRequestCount(snap.data().count)
+      } catch {
+        // non-fatal
+      }
+    }
+    fetchCount()
+    return () => { cancelled = true }
+  }, [])
 
   const handleSearch = (e) => {
     e.preventDefault()
-    const q = query.trim()
+    const q = query_text.trim()
     if (!q) return
     saveSearch(q)
     trackSearch(q)
@@ -28,24 +54,36 @@ export default function Hero({ userName }) {
   }
 
   const recentSearches = history.filter((h) => !POPULAR_TAGS.includes(h)).slice(0, 3)
+  const greeting = getTimeGreeting()
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-blue-950 dark:via-gray-900 dark:to-blue-900 border border-blue-100 dark:border-blue-900">
       <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14 max-w-xl">
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white leading-tight">
-          How can we help you today{userName ? `, ${userName.split(' ')[0]}` : ''}?
+          {greeting}{userName ? `, ${userName.split(' ')[0]}` : ''}
         </h1>
         <p className="mt-3 text-gray-600 dark:text-gray-300 text-base leading-relaxed">
           Connect with your community, get support, or lend a helping hand. We&apos;re stronger when we help each other.
         </p>
 
-        <form onSubmit={handleSearch} className="mt-6 relative">
+        {openRequestCount !== null && openRequestCount > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/get-help')}
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 px-3 py-1.5 rounded-full hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse inline-block" />
+            {openRequestCount} open help {openRequestCount === 1 ? 'request' : 'requests'} right now
+          </button>
+        )}
+
+        <form onSubmit={handleSearch} className="mt-5 relative">
           <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
             <Search className="w-5 h-5 text-gray-400 ml-4 shrink-0" />
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={query_text}
+              onChange={(e) => setQueryText(e.target.value)}
               placeholder="Search for help, resources, or questions..."
               className="flex-1 px-3 py-3 bg-transparent text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none text-sm"
             />

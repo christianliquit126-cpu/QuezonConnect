@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Bell, BellOff, Heart, MessageCircle, Mail, Users, Megaphone, X, Trash2 } from 'lucide-react'
+import { Bell, BellOff, Heart, MessageCircle, Mail, Users, Megaphone, X } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -80,6 +80,14 @@ export default function NotificationBell() {
     }
   }, [currentUser])
 
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  // Sync unread count into the document title
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, '')
+    document.title = unreadCount > 0 ? `(${unreadCount}) ${base}` : base
+  }, [unreadCount])
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) {
@@ -97,8 +105,6 @@ export default function NotificationBell() {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [])
-
-  const unreadCount = notifications.filter((n) => !n.read).length
 
   const visibleNotifications = unreadOnly ? notifications.filter((n) => !n.read) : notifications
 
@@ -162,14 +168,14 @@ export default function NotificationBell() {
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5">
+          <span className="absolute top-1 right-1 min-w-[1rem] h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium px-0.5 animate-badge-pop">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg z-50">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl shadow-lg z-50 dropdown-enter">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
             <h3 className="font-semibold text-sm text-gray-900 dark:text-white">
               Notifications
@@ -252,7 +258,16 @@ export default function NotificationBell() {
                       onClick={() => handleClickNotification(n)}
                       className="flex-1 text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
-                      <TypeIcon className={`w-4 h-4 shrink-0 mt-0.5 ${cfg.color}`} />
+                      {n.senderAvatar ? (
+                        <img
+                          src={n.senderAvatar}
+                          alt={n.senderName || ''}
+                          className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5"
+                          onError={(e) => { e.currentTarget.style.display = 'none' }}
+                        />
+                      ) : (
+                        <TypeIcon className={`w-4 h-4 shrink-0 mt-0.5 ${cfg.color}`} />
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-800 dark:text-gray-200 leading-snug pr-5">{n.message}</p>
                         <p className="text-xs text-gray-400 mt-0.5">

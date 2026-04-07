@@ -3,6 +3,21 @@
 ## Overview
 A full-stack community help and support platform built with **Vite + React** and **Tailwind CSS**, fully backed by **Firebase** (Firestore real-time, Auth, Storage). Features an interactive map with real-time location, nearby help requests, directions, and Quezon City place discovery.
 
+## Improvements (Session 4 — 2026-04-07)
+1. **Splash Screen overhaul** — Replaced generic bouncing dots with ambient dual-glow rings (blue + green), logo shimmer sweep, gradient divider tagline, and smooth opacity-only exit. Uses actual logo image. Progress bar still present.
+2. **Hero: Time-based greeting** — Greeting text dynamically shows "Good morning / afternoon / evening" based on the user's local time, plus first name when logged in.
+3. **Hero: Live open request count** — Queries Firestore on mount and shows a pulsing badge ("X open help requests right now") linking to /get-help. Non-fatal if the query fails.
+4. **Notification count in browser tab** — When unread notifications exist, the document title is prefixed with `(N)` so users can see counts from other tabs. Removed when count drops to zero.
+5. **NotificationBell: Sender avatar** — Notification items now show the sender's avatar (if available) in place of the generic type icon, for a richer personal feel.
+6. **CommunityFeed: "Most Liked" filter** — Added a new "Most Liked" sort option (alongside Trending) that sorts posts purely by likes count descending.
+7. **ActiveVolunteers: Volunteer note displayed** — Each volunteer card in the home-page sidebar now shows the volunteer's availability note (italic, line-clamped to 2 lines), matching GiveHelp.
+8. **Firestore rules: location size limit** — `helpRequests` create rule now enforces `location.size() <= 200` chars (was uncapped).
+9. **Firestore rules: volunteer note update limit** — `volunteers` update rule now also enforces `note.size() <= 200`, matching the create rule.
+10. **App.jsx ScrollReveal: MutationObserver** — ScrollReveal now uses a `MutationObserver` on `document.body` to re-observe newly added `.reveal` elements after route changes, so animations fire correctly on all dynamically added content.
+11. **GetHelp: keyboard shortcut 'N'** — Pressing `N` anywhere on the Get Help page (when not in an input) opens the new help request form. Added alongside the existing Escape-to-close.
+12. **GiveHelp: "Message" button on volunteer cards** — Logged-in users now see a "Message" button on each volunteer card (except their own). Clicking navigates to `/messages?uid=<volunteerId>`.
+13. **Footer: Keyboard shortcuts section** — Added a fourth column to the footer grid listing the keyboard shortcuts available across the app (/, N, Esc) with styled `<kbd>` chips.
+
 ## Recent Improvements (2026-04-07)
 1. **Fixed Google/Gmail login bug** — Race condition resolved: `onAuthStateChanged` now ensures user doc exists before fetching profile, so social logins never fail due to a missing Firestore document.
 2. **Fixed Firestore rules** — `notBanned()` now includes `exists()` check so it does not crash on non-existent user docs. Admin role creation via social login now works correctly (create with 'member' then separate update).

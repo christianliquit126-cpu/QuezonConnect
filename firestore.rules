@@ -60,7 +60,8 @@ service cloud.firestore {
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.content.size() <= 500;
         // Owner can edit their own comment; admin can edit any
-        allow update: if notBanned() && (isOwner(resource.data.uid) || isAdmin());
+        allow update: if notBanned() && (isOwner(resource.data.uid) || isAdmin())
+          && (!('content' in request.resource.data) || request.resource.data.content.size() <= 500);
         allow delete: if isOwner(resource.data.uid) || isAdmin();
       }
     }
@@ -75,7 +76,9 @@ service cloud.firestore {
         // Optional phone field: max 20 chars
         && (!('phone' in request.resource.data) || request.resource.data.phone.size() <= 20)
         // Optional neededBy field: max 30 chars
-        && (!('neededBy' in request.resource.data) || request.resource.data.neededBy.size() <= 30);
+        && (!('neededBy' in request.resource.data) || request.resource.data.neededBy.size() <= 30)
+        // Optional location field: max 200 chars
+        && (!('location' in request.resource.data) || request.resource.data.location.size() <= 200);
       // Owner/admin can update any field (except uid)
       allow update: if notBanned()
         && (isOwner(resource.data.uid) || isAdmin())
@@ -177,7 +180,9 @@ service cloud.firestore {
       allow update: if ((isOwner(resource.data.uid) && volId == request.auth.uid && notBanned())
         || isAdmin())
         && (!('uid' in request.resource.data)
-            || request.resource.data.uid == resource.data.uid);
+            || request.resource.data.uid == resource.data.uid)
+        // Enforce note size limit on updates too
+        && (!('note' in request.resource.data) || request.resource.data.note.size() <= 200);
       allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
   }

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Heart } from 'lucide-react'
+import { Heart, Keyboard } from 'lucide-react'
 
 const PRIMARY_LINKS = [
   { label: 'Home', to: '/' },
@@ -16,13 +16,19 @@ const SECONDARY_LINKS = [
   { label: 'Settings', to: '/settings' },
 ]
 
+const KEYBOARD_SHORTCUTS = [
+  { key: '/', description: 'Search resources' },
+  { key: 'N', description: 'New help request' },
+  { key: 'Esc', description: 'Close panels' },
+]
+
 export default function Footer() {
   const year = new Date().getFullYear()
 
   return (
     <footer className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <img src="/favicon.svg" alt="" className="w-7 h-7" aria-hidden="true" />
@@ -77,6 +83,23 @@ export default function Footer() {
                 </li>
               </ul>
             </nav>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <Keyboard className="w-3 h-3" aria-hidden="true" />
+              Keyboard Shortcuts
+            </h3>
+            <ul className="space-y-2">
+              {KEYBOARD_SHORTCUTS.map(({ key, description }) => (
+                <li key={key} className="flex items-center gap-2">
+                  <kbd className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1 text-xs font-mono font-semibold bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                    {key}
+                  </kbd>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{description}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 

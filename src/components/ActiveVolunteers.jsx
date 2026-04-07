@@ -51,6 +51,7 @@ export default function ActiveVolunteers() {
                 className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
                   v.online ? 'bg-green-400' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
+                aria-label={v.online ? 'Available' : 'Unavailable'}
               />
             </div>
             <div>
@@ -64,6 +65,11 @@ export default function ActiveVolunteers() {
             <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
               {v.helpCount || 0} helped
             </p>
+            {v.note && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 italic leading-tight line-clamp-2">
+                {v.note}
+              </p>
+            )}
           </div>
         ))}
       </div>

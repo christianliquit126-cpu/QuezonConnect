@@ -484,7 +484,7 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
 
 export default function GetHelp() {
   usePageTitle('Get Help')
-  const { displayUser, currentUser } = useAuth()
+  const { displayUser, currentUser, isLoggedIn } = useAuth()
   const { location, address, detect, loading: locLoading } = useLocationCtx()
   const navigate = useNavigate()
   const [requests, setRequests] = useState([])
@@ -614,15 +614,20 @@ export default function GetHelp() {
 
   useEffect(() => {
     const onKeyDown = (e) => {
+      const inInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
       if (e.key === 'Escape' && showForm) {
         setShowForm(false)
         setImageUrl(null)
         setSubmitError('')
       }
+      if ((e.key === 'n' || e.key === 'N') && !showForm && !inInput && isLoggedIn && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        setShowForm(true)
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [showForm])
+  }, [showForm, isLoggedIn])
 
   const URGENCY_ORDER = { emergency: 0, urgent: 1, normal: 2 }
 
