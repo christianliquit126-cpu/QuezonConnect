@@ -9,6 +9,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import OfflineBanner from './components/OfflineBanner'
 import BackToTop from './components/BackToTop'
+import SplashScreen from './components/SplashScreen'
 import Home from './pages/Home'
 import NotFound from './pages/NotFound'
 import FirebaseSetup from './components/FirebaseSetup'
@@ -114,6 +115,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <SplashScreen />
       <AuthProvider>
         <LocationProvider>
           <ToastProvider>
