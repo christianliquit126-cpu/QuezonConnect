@@ -145,6 +145,20 @@ export default function Profile() {
     ? `${displayUser.barangay}${displayUser.city ? ', ' + displayUser.city : ''}`
     : displayUser?.location || ''
 
+  const profileCompleteness = (() => {
+    if (!displayUser) return { percent: 0, missing: [] }
+    const checks = [
+      { key: 'name', label: 'Display name', done: !!displayUser.name },
+      { key: 'avatar', label: 'Profile photo', done: !!displayUser.avatar && !displayUser.avatar.includes('ui-avatars') },
+      { key: 'location', label: 'Location / barangay', done: !!(displayUser.barangay || displayUser.location) },
+      { key: 'bio', label: 'About / Bio', done: !!displayUser.bio },
+      { key: 'emailVerified', label: 'Email verified', done: !!displayUser.emailVerified },
+    ]
+    const done = checks.filter((c) => c.done).length
+    const missing = checks.filter((c) => !c.done).map((c) => c.label)
+    return { percent: Math.round((done / checks.length) * 100), missing }
+  })()
+
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Profile card */}
@@ -223,6 +237,35 @@ export default function Profile() {
           <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed border-t border-gray-100 dark:border-gray-800 pt-4">
             {displayUser.bio}
           </p>
+        )}
+
+        {/* Profile Completeness */}
+        {profileCompleteness.percent < 100 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Profile completeness</span>
+              <span className={`font-semibold ${profileCompleteness.percent >= 80 ? 'text-green-600 dark:text-green-400' : profileCompleteness.percent >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500'}`}>
+                {profileCompleteness.percent}%
+              </span>
+            </div>
+            <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  profileCompleteness.percent >= 80 ? 'bg-green-500' :
+                  profileCompleteness.percent >= 50 ? 'bg-amber-500' : 'bg-red-400'
+                }`}
+                style={{ width: `${profileCompleteness.percent}%` }}
+              />
+            </div>
+            {profileCompleteness.missing.length > 0 && (
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Missing: {profileCompleteness.missing.join(', ')}.{' '}
+                <Link to="/settings" className="text-primary-600 dark:text-primary-400 hover:underline">
+                  Complete your profile
+                </Link>
+              </p>
+            )}
+          </div>
         )}
 
         {/* Stats */}

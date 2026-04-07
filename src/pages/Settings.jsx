@@ -25,6 +25,10 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  ShieldCheck,
+  RefreshCw,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 import { useLocationCtx } from '../context/LocationContext'
@@ -40,7 +44,7 @@ const DEFAULT_NOTIF_PREFS = {
 
 export default function Settings() {
   usePageTitle('Settings')
-  const { displayUser, currentUser, refreshProfile, logout } = useAuth()
+  const { displayUser, currentUser, refreshProfile, logout, needsEmailVerification, resendVerificationEmail, deleteAccount, isEmailProvider } = useAuth()
   const navigate = useNavigate()
   const { location: detectedLoc } = useLocationCtx()
   const fileInputRef = useRef(null)
@@ -140,9 +144,56 @@ export default function Settings() {
   const [showPwCurrent, setShowPwCurrent] = useState(false)
   const [showPwNext, setShowPwNext] = useState(false)
 
-  const isEmailProvider = currentUser?.providerData?.some(
-    (p) => p.providerId === 'password'
-  )
+  const [verifyResending, setVerifyResending] = useState(false)
+  const [verifyResent, setVerifyResent] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+
+  const handleResendVerification = async () => {
+    if (verifyResending || verifyResent) return
+    setVerifyResending(true)
+    setVerifyError('')
+    try {
+      await resendVerificationEmail()
+      setVerifyResent(true)
+      setTimeout(() => setVerifyResent(false), 60000)
+    } catch (err) {
+      if (err.code === 'auth/too-many-requests') {
+        setVerifyError('Too many requests. Please wait a few minutes and try again.')
+      } else {
+        setVerifyError('Failed to send verification email. Please try again.')
+      }
+    } finally {
+      setVerifyResending(false)
+    }
+  }
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteError('Please type DELETE to confirm.')
+      return
+    }
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteAccount(deletePassword || undefined)
+      navigate('/login')
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setDeleteError('Incorrect password. Please try again.')
+      } else if (err.code === 'auth/requires-recent-login') {
+        setDeleteError('Please sign out and sign back in before deleting your account.')
+      } else {
+        setDeleteError('Failed to delete account. Please try again.')
+      }
+      setDeleting(false)
+    }
+  }
 
   const handleChangePassword = async () => {
     setPwError('')
@@ -490,6 +541,62 @@ export default function Settings() {
         </div>
       )}
 
+      {/* Email Verification */}
+      {isEmailProvider && (
+        <div className="card p-6 space-y-4">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+            Email Verification
+          </h2>
+          {displayUser?.emailVerified ? (
+            <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>Your email address is verified.</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Your email address has not been verified. Please check your inbox for a verification email.
+                </p>
+              </div>
+              {verifyError && (
+                <p className="text-xs text-red-500">{verifyError}</p>
+              )}
+              {verifyResent && (
+                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Verification email sent. Check your inbox.
+                </p>
+              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={verifyResending || verifyResent}
+                  className="text-sm flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-60"
+                >
+                  {verifyResending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  {verifyResending ? 'Sending...' : verifyResent ? 'Email sent' : 'Resend verification email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={refreshProfile}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                >
+                  Already verified?
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Change Password */}
       {isEmailProvider && (
         <div className="card p-6 space-y-4">
@@ -634,6 +741,87 @@ export default function Settings() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Danger Zone — Account Deletion */}
+      <div className="card p-6 space-y-4 border border-red-100 dark:border-red-900/40">
+        <h2 className="text-base font-bold text-red-700 dark:text-red-400 border-b border-red-100 dark:border-red-900/40 pb-3 flex items-center gap-2">
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+          Danger Zone
+        </h2>
+        {!showDeleteConfirm ? (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              Delete my account
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-lg px-3 py-2.5">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-xs text-red-700 dark:text-red-300">
+                This will permanently delete your account, profile, and all your data. This cannot be undone.
+              </p>
+            </div>
+            {isEmailProvider && (
+              <div>
+                <label htmlFor="delete-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Confirm your password
+                </label>
+                <input
+                  id="delete-password"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  className="input-field"
+                  placeholder="Enter your current password"
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
+            <div>
+              <label htmlFor="delete-confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Type <strong>DELETE</strong> to confirm
+              </label>
+              <input
+                id="delete-confirm"
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="input-field"
+                placeholder="DELETE"
+              />
+            </div>
+            {deleteError && (
+              <p className="text-xs text-red-500" role="alert">{deleteError}</p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirmText !== 'DELETE'}
+                className="text-sm font-medium px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                {deleting ? 'Deleting...' : 'Permanently delete account'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); setDeletePassword(''); setDeleteConfirmText('') }}
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sign Out */}

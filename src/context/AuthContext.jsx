@@ -6,8 +6,23 @@ import {
   signInWithPopup,
   signOut,
   updateProfile,
+  sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  deleteUser,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  GoogleAuthProvider,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore'
 import { auth, db, googleProvider, facebookProvider } from '../firebase'
 
 const AuthContext = createContext()
@@ -35,7 +50,9 @@ export const AuthProvider = ({ children }) => {
     const ref = doc(db, 'users', firebaseUser.uid)
     const snap = await getDoc(ref)
     const isEnvAdmin = ADMIN_UID && firebaseUser.uid === ADMIN_UID
+
     if (!snap.exists()) {
+      // Always create with 'member' role first (satisfies Firestore rules)
       await setDoc(ref, {
         uid: firebaseUser.uid,
         name: extra.name || firebaseUser.displayName || 'Community Member',
@@ -50,12 +67,35 @@ export const AuthProvider = ({ children }) => {
         lng: extra.lng || null,
         isQC: extra.isQC !== undefined ? extra.isQC : null,
         bio: extra.bio || '',
-        role: isEnvAdmin ? 'admin' : 'member',
+        role: 'member',
+        emailVerified: firebaseUser.emailVerified || false,
         createdAt: serverTimestamp(),
+        lastSeen: serverTimestamp(),
       })
-    } else if (isEnvAdmin && snap.data().role !== 'admin') {
-      await setDoc(ref, { role: 'admin' }, { merge: true })
+
+      // If this is the designated admin, promote their role in a separate update
+      if (isEnvAdmin) {
+        await updateDoc(ref, { role: 'admin' })
+      }
+    } else {
+      // Document exists — update lastSeen and emailVerified status
+      const updates = {
+        lastSeen: serverTimestamp(),
+        emailVerified: firebaseUser.emailVerified || false,
+      }
+
+      if (isEnvAdmin && snap.data().role !== 'admin') {
+        updates.role = 'admin'
+      }
+
+      // Update avatar if using Google/social and photo changed
+      if (firebaseUser.photoURL && !snap.data().avatar?.includes('ui-avatars')) {
+        updates.avatar = firebaseUser.photoURL
+      }
+
+      await updateDoc(ref, updates)
     }
+
     const updated = await getDoc(ref)
     return updated.data()
   }
@@ -72,7 +112,7 @@ export const AuthProvider = ({ children }) => {
       }
       const isEnvAdmin = ADMIN_UID && uid === ADMIN_UID
       if (isEnvAdmin && data.role !== 'admin') {
-        await setDoc(ref, { role: 'admin' }, { merge: true })
+        await updateDoc(ref, { role: 'admin' })
         setUserProfile({ ...data, role: 'admin' })
       } else {
         setUserProfile(data)
@@ -84,8 +124,24 @@ export const AuthProvider = ({ children }) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user)
       try {
-        if (user) await fetchUserProfile(user.uid)
-        else setUserProfile(null)
+        if (user) {
+          // Ensure user doc exists (handles social login race condition)
+          const ref = doc(db, 'users', user.uid)
+          const snap = await getDoc(ref)
+          if (!snap.exists()) {
+            // Doc not created yet (social login case) — create it now
+            await createUserDoc(user)
+          } else {
+            // Update lastSeen and emailVerified on every sign-in
+            await updateDoc(ref, {
+              lastSeen: serverTimestamp(),
+              emailVerified: user.emailVerified || false,
+            }).catch(() => {})
+          }
+          await fetchUserProfile(user.uid)
+        } else {
+          setUserProfile(null)
+        }
       } catch {
         setUserProfile(null)
       } finally {
@@ -95,7 +151,11 @@ export const AuthProvider = ({ children }) => {
     return unsub
   }, [])
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = true) => {
+    await setPersistence(
+      auth,
+      rememberMe ? browserLocalPersistence : browserSessionPersistence
+    )
     const cred = await signInWithEmailAndPassword(auth, email, password)
     await fetchUserProfile(cred.user.uid)
     return cred
@@ -106,6 +166,12 @@ export const AuthProvider = ({ children }) => {
     await updateProfile(cred.user, { displayName: name })
     const profile = await createUserDoc(cred.user, { name, location })
     setUserProfile(profile)
+    // Send email verification after account creation
+    try {
+      await sendEmailVerification(cred.user)
+    } catch {
+      // Non-fatal: verification email failed but account was created
+    }
     return cred
   }
 
@@ -129,10 +195,57 @@ export const AuthProvider = ({ children }) => {
   }
 
   const refreshProfile = async () => {
-    if (currentUser) await fetchUserProfile(currentUser.uid)
+    if (currentUser) {
+      await currentUser.reload()
+      await fetchUserProfile(currentUser.uid)
+    }
+  }
+
+  const resendVerificationEmail = async () => {
+    if (!currentUser) throw new Error('Not logged in')
+    if (currentUser.emailVerified) throw new Error('Email already verified')
+    await sendEmailVerification(currentUser)
+  }
+
+  const deleteAccount = async (password) => {
+    if (!currentUser) throw new Error('Not logged in')
+
+    // Re-authenticate if email/password provider
+    const isEmailUser = currentUser.providerData?.some(
+      (p) => p.providerId === 'password'
+    )
+    if (isEmailUser && password) {
+      const credential = EmailAuthProvider.credential(currentUser.email, password)
+      await reauthenticateWithCredential(currentUser, credential)
+    } else if (!isEmailUser) {
+      // For Google users, re-authenticate with Google
+      const result = await signInWithPopup(auth, googleProvider)
+      await reauthenticateWithCredential(
+        currentUser,
+        GoogleAuthProvider.credentialFromResult(result)
+      )
+    }
+
+    const uid = currentUser.uid
+    // Delete Firestore user document
+    try {
+      await deleteDoc(doc(db, 'users', uid))
+    } catch {
+      // Continue even if Firestore delete fails
+    }
+
+    await deleteUser(currentUser)
+    setUserProfile(null)
   }
 
   const isAdmin = checkIsAdmin(currentUser?.uid, userProfile)
+
+  const isEmailVerified = currentUser?.emailVerified || false
+  const isEmailProvider = currentUser?.providerData?.some(
+    (p) => p.providerId === 'password'
+  )
+  // Only prompt email users to verify — social logins are considered verified
+  const needsEmailVerification = isEmailProvider && !isEmailVerified
 
   const displayUser = currentUser
     ? {
@@ -151,6 +264,9 @@ export const AuthProvider = ({ children }) => {
         isQC: userProfile?.isQC ?? null,
         bio: userProfile?.bio || '',
         role: isAdmin ? 'admin' : (userProfile?.role || 'member'),
+        emailVerified: isEmailVerified,
+        createdAt: userProfile?.createdAt || null,
+        lastSeen: userProfile?.lastSeen || null,
       }
     : null
 
@@ -160,6 +276,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     isLoggedIn: !!currentUser,
     isAdmin,
+    isEmailVerified,
+    isEmailProvider,
+    needsEmailVerification,
     displayUser,
     login,
     signup,
@@ -167,6 +286,8 @@ export const AuthProvider = ({ children }) => {
     loginWithFacebook,
     logout,
     refreshProfile,
+    resendVerificationEmail,
+    deleteAccount,
   }
 
   return (

@@ -10,6 +10,7 @@ export default function Login() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPw, setShowPw] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState('')
@@ -40,12 +41,33 @@ export default function Login() {
     }
   }
 
+  const getSocialAuthError = (err) => {
+    switch (err.code) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return 'Sign-in was cancelled. Please try again.'
+      case 'auth/popup-blocked':
+        return 'Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.'
+      case 'auth/account-exists-with-different-credential':
+        return 'An account already exists with this email using a different sign-in method. Try signing in with email and password.'
+      case 'auth/network-request-failed':
+        return 'Network error. Check your internet connection and try again.'
+      case 'auth/unauthorized-domain':
+        return 'This domain is not authorized for sign-in. Please contact support.'
+      case 'auth/operation-not-allowed':
+        return 'This sign-in method is not enabled. Please contact support or try another method.'
+      default:
+        return err.message?.replace('Firebase: ', '').replace(/\s*\(.*?\)\.?/, '').trim() ||
+          'Sign-in failed. Please try again.'
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      await login(form.email, form.password)
+      await login(form.email, form.password, rememberMe)
       navigate('/')
     } catch (err) {
       setError(getAuthError(err))
@@ -62,7 +84,7 @@ export default function Login() {
       await loginWithGoogle()
       navigate('/')
     } catch (err) {
-      setError('Google sign-in failed. Make sure Google Auth is enabled in Firebase.')
+      setError(getSocialAuthError(err))
     } finally {
       setSocialLoading('')
     }
@@ -76,7 +98,7 @@ export default function Login() {
       await loginWithFacebook()
       navigate('/')
     } catch (err) {
-      setError('Facebook sign-in failed. Make sure Facebook Auth is enabled in Firebase.')
+      setError(getSocialAuthError(err))
     } finally {
       setSocialLoading('')
     }
@@ -160,7 +182,7 @@ export default function Login() {
                     disabled={resetLoading || !resetEmail.trim()}
                     className="btn-primary w-full justify-center flex disabled:opacity-60"
                   >
-                    {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                    {resetLoading ? 'Sending...' : 'Send Reset Link'}
                   </button>
                 </form>
                 <button
@@ -292,6 +314,20 @@ export default function Login() {
                 </button>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500 bg-white dark:bg-gray-800 cursor-pointer"
+              />
+              <label htmlFor="remember-me" className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none">
+                Keep me signed in on this device
+              </label>
+            </div>
+
             <button
               type="submit"
               disabled={loading}

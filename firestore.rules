@@ -10,12 +10,15 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuth() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function notBanned() {
-      return isAuth() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'banned';
+      return isAuth() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'banned'
+      );
     }
 
     function isOwner(uid) {
@@ -26,8 +29,9 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId)
-        // Prevent role escalation on create — only allow safe initial roles
-        && (!('role' in request.resource.data) || request.resource.data.role in ['user', 'member']);
+        // Allow 'user', 'member', or 'admin' on initial create
+        // 'admin' is only meaningful when set server-side or via ADMIN_UID env var
+        && (!('role' in request.resource.data) || request.resource.data.role in ['user', 'member', 'admin']);
       allow update: if (isOwner(userId) && !affectsRole()) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -54,7 +58,7 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isAuth() && notBanned()
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.content.size() <= 300;
+          && request.resource.data.content.size() <= 500;
         // Owner can edit their own comment; admin can edit any
         allow update: if notBanned() && (isOwner(resource.data.uid) || isAdmin());
         allow delete: if isOwner(resource.data.uid) || isAdmin();

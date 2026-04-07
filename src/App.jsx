@@ -8,6 +8,7 @@ import { isConfigured } from './firebase'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import OfflineBanner from './components/OfflineBanner'
+import EmailVerificationBanner from './components/EmailVerificationBanner'
 import BackToTop from './components/BackToTop'
 import SplashScreen from './components/SplashScreen'
 import Home from './pages/Home'
@@ -80,6 +81,7 @@ const AppRoutes = () => {
       <GlobalKeyboardShortcuts />
       <Navbar />
       <OfflineBanner />
+      <EmailVerificationBanner />
       <BackToTop />
       <div className="flex-1">
         <Suspense fallback={<PageLoader />}>

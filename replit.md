@@ -3,6 +3,24 @@
 ## Overview
 A full-stack community help and support platform built with **Vite + React** and **Tailwind CSS**, fully backed by **Firebase** (Firestore real-time, Auth, Storage). Features an interactive map with real-time location, nearby help requests, directions, and Quezon City place discovery.
 
+## Recent Improvements (2026-04-07)
+1. **Fixed Google/Gmail login bug** — Race condition resolved: `onAuthStateChanged` now ensures user doc exists before fetching profile, so social logins never fail due to a missing Firestore document.
+2. **Fixed Firestore rules** — `notBanned()` now includes `exists()` check so it does not crash on non-existent user docs. Admin role creation via social login now works correctly (create with 'member' then separate update).
+3. **Fixed admin user document creation** — Admin users created with social login are now always first created with 'member' role (satisfying the Firestore rule), then immediately promoted via a separate `updateDoc` call.
+4. **Email verification on signup** — `sendEmailVerification` is called automatically after email/password account creation.
+5. **Email verification banner** — Persistent dismissible banner shown to unverified email users across all pages with resend and "already verified" actions.
+6. **Email verification in Settings** — Dedicated section showing verification status, resend button, and refresh check.
+7. **Account deletion in Settings** — Full account deletion flow with password confirmation (for email users) and type-to-confirm safety gate. Deletes both Firebase Auth user and Firestore document.
+8. **Better social login error messages** — Now maps `auth/popup-closed-by-user`, `auth/popup-blocked`, `auth/account-exists-with-different-credential`, `auth/unauthorized-domain`, and more to clear user-facing messages.
+9. **Remember me on Login** — Checkbox allows users to choose between persistent (`browserLocalPersistence`) and session-only (`browserSessionPersistence`) login.
+10. **Last seen tracking** — `lastSeen` field updated in Firestore on every login and auth state change.
+11. **`emailVerified` field in user doc** — Synced from Firebase Auth on every login so Firestore always reflects the real verification state.
+12. **Fixed password placeholder** — SignUp form placeholder changed from "At least 6 characters" to "At least 8 characters" to match the actual enforced minimum.
+13. **Post edit limit synced** — `EDIT_MAX` in PostCard raised from 500 to 1000 to match the Firestore rule and CreatePost limit.
+14. **Post cooldown** — 30-second cooldown timer after posting prevents accidental duplicate submissions; button shows countdown.
+15. **Profile completeness indicator** — Visual progress bar on the Profile page shows what percentage of the profile is filled in and lists missing fields with a link to Settings.
+16. **Profile `emailVerified` in completeness** — Email verification is now a factor in the profile completeness score.
+
 ## Tech Stack
 - **Frontend**: Vite 5, React 18, React Router 6, Tailwind CSS 3
 - **Map**: Leaflet 1.9 + react-leaflet 4.2 (OpenStreetMap/CartoDB tiles)

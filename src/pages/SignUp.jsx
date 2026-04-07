@@ -187,7 +187,7 @@ export default function SignUp() {
                   value={form.password}
                   onChange={handleChange}
                   required
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   className="input-field pr-10"
                   autoComplete="new-password"
                 />

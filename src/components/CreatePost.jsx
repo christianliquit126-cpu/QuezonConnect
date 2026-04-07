@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { X, Loader2, Clock } from 'lucide-react'
 import ImageUpload from './ImageUpload'
 import { POST_CATEGORIES as CATEGORIES } from '../constants/categories'
 
 const MAX_CHARS = 1000
+const POST_COOLDOWN_SECONDS = 30
 
 export default function CreatePost({ currentUser, onSubmit }) {
   const [content, setContent] = useState('')
@@ -12,6 +13,8 @@ export default function CreatePost({ currentUser, onSubmit }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [imageUrl, setImageUrl] = useState(null)
+  const [cooldownRemaining, setCooldownRemaining] = useState(0)
+  const cooldownTimer = useRef(null)
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -22,9 +25,23 @@ export default function CreatePost({ currentUser, onSubmit }) {
     }
   }
 
+  const startCooldown = () => {
+    let remaining = POST_COOLDOWN_SECONDS
+    setCooldownRemaining(remaining)
+    clearInterval(cooldownTimer.current)
+    cooldownTimer.current = setInterval(() => {
+      remaining -= 1
+      setCooldownRemaining(remaining)
+      if (remaining <= 0) {
+        clearInterval(cooldownTimer.current)
+        setCooldownRemaining(0)
+      }
+    }, 1000)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!content.trim() || content.length > MAX_CHARS || loading) return
+    if (!content.trim() || content.length > MAX_CHARS || loading || cooldownRemaining > 0) return
     setLoading(true)
     setError('')
     try {
@@ -33,6 +50,7 @@ export default function CreatePost({ currentUser, onSubmit }) {
       setCategory('General')
       setImageUrl(null)
       setExpanded(false)
+      startCooldown()
     } catch {
       setError('Failed to post. Please try again.')
     } finally {
@@ -133,11 +151,16 @@ export default function CreatePost({ currentUser, onSubmit }) {
                   </button>
                   <button
                     type="submit"
-                    disabled={!content.trim() || loading || isOverLimit}
+                    disabled={!content.trim() || loading || isOverLimit || cooldownRemaining > 0}
                     className="btn-primary text-sm disabled:opacity-50 flex items-center gap-1.5"
+                    title={cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s before posting again` : undefined}
                   >
-                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                    {loading ? 'Posting...' : 'Post'}
+                    {loading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                    ) : cooldownRemaining > 0 ? (
+                      <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+                    ) : null}
+                    {loading ? 'Posting...' : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : 'Post'}
                   </button>
                   {error && (
                     <span className="text-xs text-red-500" role="alert">{error}</span>

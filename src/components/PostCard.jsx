@@ -263,7 +263,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     }
   }
 
-  const EDIT_MAX = 500
+  const EDIT_MAX = 1000
 
   const handleSaveEdit = async () => {
     const trimmed = editContent.trim()
