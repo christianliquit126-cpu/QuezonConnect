@@ -11,6 +11,7 @@ import NearbyHelp from '../components/NearbyHelp'
 import SmartSuggestions from '../components/SmartSuggestions'
 import ReportIncident from '../components/ReportIncident'
 import ProximityNotificationListener from '../components/ProximityNotificationListener'
+import CommunityStats from '../components/CommunityStats'
 
 export default function Home() {
   const { displayUser } = useAuth()
@@ -41,6 +42,7 @@ export default function Home() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            <CommunityStats />
             <NearbyHelp />
             <SmartSuggestions />
             <CommunityUpdates />

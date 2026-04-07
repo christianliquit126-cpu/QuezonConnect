@@ -3,7 +3,13 @@ import { useAuth } from '../context/AuthContext'
 import usePageTitle from '../hooks/usePageTitle'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../firebase'
+import { auth } from '../firebase'
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
+import {
+  reauthenticateWithCredential,
+  updatePassword,
+  EmailAuthProvider,
+} from 'firebase/auth'
 import {
   User,
   MapPin,
@@ -16,6 +22,9 @@ import {
   Mail,
   FileText,
   Bell,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { uploadToCloudinary, getAvatarUrl } from '../services/cloudinary'
 import { useLocationCtx } from '../context/LocationContext'
@@ -123,6 +132,42 @@ export default function Settings() {
   }
 
   const [nameError, setNameError] = useState('')
+
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwError, setPwError] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwSaved, setPwSaved] = useState(false)
+  const [showPwCurrent, setShowPwCurrent] = useState(false)
+  const [showPwNext, setShowPwNext] = useState(false)
+
+  const isEmailProvider = currentUser?.providerData?.some(
+    (p) => p.providerId === 'password'
+  )
+
+  const handleChangePassword = async () => {
+    setPwError('')
+    if (!pwForm.current) { setPwError('Enter your current password.'); return }
+    if (pwForm.next.length < 8) { setPwError('New password must be at least 8 characters.'); return }
+    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match.'); return }
+    if (pwForm.next === pwForm.current) { setPwError('New password must be different from your current password.'); return }
+    setPwSaving(true)
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, pwForm.current)
+      await reauthenticateWithCredential(auth.currentUser, credential)
+      await updatePassword(auth.currentUser, pwForm.next)
+      setPwSaved(true)
+      setPwForm({ current: '', next: '', confirm: '' })
+      setTimeout(() => setPwSaved(false), 4000)
+    } catch (err) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setPwError('Current password is incorrect.')
+      } else {
+        setPwError('Failed to change password. Please try again.')
+      }
+    } finally {
+      setPwSaving(false)
+    }
+  }
 
   const NAME_MAX = 60
 
@@ -441,6 +486,98 @@ export default function Settings() {
                 {displayUser.role}
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password */}
+      {isEmailProvider && (
+        <div className="card p-6 space-y-4">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 flex items-center gap-2">
+            <KeyRound className="w-4 h-4" aria-hidden="true" />
+            Change Password
+          </h2>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="pw-current" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Current Password
+              </label>
+              <div className="relative">
+                <input
+                  id="pw-current"
+                  type={showPwCurrent ? 'text' : 'password'}
+                  value={pwForm.current}
+                  onChange={(e) => { setPwForm((f) => ({ ...f, current: e.target.value })); setPwError('') }}
+                  className="input-field pr-10"
+                  autoComplete="current-password"
+                  placeholder="Your current password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwCurrent((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  aria-label={showPwCurrent ? 'Hide password' : 'Show password'}
+                >
+                  {showPwCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="pw-next" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                New Password
+              </label>
+              <div className="relative">
+                <input
+                  id="pw-next"
+                  type={showPwNext ? 'text' : 'password'}
+                  value={pwForm.next}
+                  onChange={(e) => { setPwForm((f) => ({ ...f, next: e.target.value })); setPwError('') }}
+                  className="input-field pr-10"
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwNext((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  aria-label={showPwNext ? 'Hide password' : 'Show password'}
+                >
+                  {showPwNext ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="pw-confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Confirm New Password
+              </label>
+              <input
+                id="pw-confirm"
+                type="password"
+                value={pwForm.confirm}
+                onChange={(e) => { setPwForm((f) => ({ ...f, confirm: e.target.value })); setPwError('') }}
+                className="input-field"
+                autoComplete="new-password"
+                placeholder="Repeat your new password"
+              />
+            </div>
+            {pwError && (
+              <p className="text-xs text-red-500" role="alert">{pwError}</p>
+            )}
+            {pwSaved && (
+              <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Password changed successfully.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleChangePassword}
+              disabled={pwSaving}
+              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+            >
+              {pwSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              {pwSaving ? 'Changing…' : 'Change Password'}
+            </button>
           </div>
         </div>
       )}

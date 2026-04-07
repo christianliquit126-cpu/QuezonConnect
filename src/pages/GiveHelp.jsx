@@ -18,7 +18,7 @@ import {
   limit,
   getDoc,
 } from 'firebase/firestore'
-import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle, Medal, UserMinus } from 'lucide-react'
+import { Heart, Award, Users, MapPin, ChevronRight, Loader2, CheckCircle2, WifiOff, Wifi, AlertCircle, AlertTriangle, Medal, UserMinus, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -58,6 +58,8 @@ export default function GiveHelp() {
   const [volunteerSkillFilter, setVolunteerSkillFilter] = useState('All')
   const [requestCategoryFilter, setRequestCategoryFilter] = useState('All')
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
+  const [volunteerNote, setVolunteerNote] = useState('')
+  const [volunteerNameSearch, setVolunteerNameSearch] = useState('')
 
   const handleMarkHelped = async (req) => {
     if (!currentUser || !myVolunteerDoc) return
@@ -153,6 +155,7 @@ export default function GiveHelp() {
         name: displayUser.name,
         avatar: displayUser.avatar || null,
         skills,
+        note: volunteerNote.trim(),
         helpCount: 0,
         online: true,
         createdAt: serverTimestamp(),
@@ -233,9 +236,13 @@ export default function GiveHelp() {
   }, [openRequests])
 
   const filteredVolunteers = useMemo(() => {
-    if (volunteerSkillFilter === 'All') return volunteers
-    return volunteers.filter((v) => v.skills?.includes(volunteerSkillFilter))
-  }, [volunteers, volunteerSkillFilter])
+    let result = volunteerSkillFilter === 'All' ? volunteers : volunteers.filter((v) => v.skills?.includes(volunteerSkillFilter))
+    if (volunteerNameSearch.trim()) {
+      const q = volunteerNameSearch.trim().toLowerCase()
+      result = result.filter((v) => v.name?.toLowerCase().includes(q))
+    }
+    return result
+  }, [volunteers, volunteerSkillFilter, volunteerNameSearch])
 
   const filteredRequests = useMemo(() => {
     if (requestCategoryFilter === 'All') return openRequests
@@ -447,6 +454,23 @@ export default function GiveHelp() {
                 </p>
               )}
             </div>
+            <div className="mb-4">
+              <label htmlFor="volunteer-note" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Availability Note <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <input
+                id="volunteer-note"
+                type="text"
+                value={volunteerNote}
+                onChange={(e) => setVolunteerNote(e.target.value)}
+                maxLength={200}
+                placeholder="e.g. Available after 6pm weekdays"
+                className="input-field text-sm"
+              />
+              <p className={`text-xs mt-1 text-right ${volunteerNote.length >= 180 ? 'text-amber-500' : 'text-gray-400'}`}>
+                {volunteerNote.length}/200
+              </p>
+            </div>
             <button
               type="button"
               onClick={handleRegister}
@@ -623,6 +647,17 @@ export default function GiveHelp() {
               </div>
             )}
           </div>
+          <div className="mt-2 mb-3 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Search volunteers by name..."
+              value={volunteerNameSearch}
+              onChange={(e) => setVolunteerNameSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              aria-label="Search volunteers by name"
+            />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {filteredVolunteers.slice(0, 8).map((v, idx) => {
               const hasMedal = idx < 3 && (v.helpCount || 0) > 0
@@ -664,10 +699,20 @@ export default function GiveHelp() {
                 <p className="text-xs text-primary-600 dark:text-primary-400 font-medium">
                   {v.helpCount || 0} {v.helpCount === 1 ? 'person helped' : 'people helped'}
                 </p>
+                {v.note && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 italic leading-tight">
+                    {v.note}
+                  </p>
+                )}
               </div>
               )
             })}
           </div>
+          {filteredVolunteers.length === 0 && volunteers.length > 0 && (
+            <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
+              No volunteers match your search. Try a different name.
+            </p>
+          )}
         </div>
       )}
     </main>

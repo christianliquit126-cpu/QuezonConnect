@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import usePageTitle from '../hooks/usePageTitle'
+import { useAuth } from '../context/AuthContext'
 import { db } from '../firebase'
 import {
   collection,
@@ -10,6 +11,10 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore'
 import {
   Search,
@@ -24,6 +29,7 @@ import {
   XCircle,
   Copy,
   Check,
+  ThumbsUp,
 } from 'lucide-react'
 
 const SEED_RESOURCES = [
@@ -192,6 +198,7 @@ let seedAttempted = false
 
 export default function Resources() {
   usePageTitle('Resources')
+  const { currentUser } = useAuth()
   const loc = useLocation()
   const params = new URLSearchParams(loc.search)
   const initialQ = params.get('q') || ''
@@ -202,6 +209,25 @@ export default function Resources() {
   const [category, setCategory] = useState('All')
   const [selected, setSelected] = useState(null)
   const [copiedHotline, setCopiedHotline] = useState(null)
+  const [votingId, setVotingId] = useState(null)
+
+  const handleHelpfulVote = async (e, r) => {
+    e.stopPropagation()
+    if (!currentUser || votingId) return
+    setVotingId(r.id)
+    const votedBy = r.helpfulVotedBy || []
+    const hasVoted = votedBy.includes(currentUser.uid)
+    try {
+      await updateDoc(doc(db, 'resources', r.id), {
+        helpfulVotes: (r.helpfulVotes || 0) + (hasVoted ? -1 : 1),
+        helpfulVotedBy: hasVoted ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+      })
+    } catch (err) {
+      console.error('Helpful vote error:', err)
+    } finally {
+      setVotingId(null)
+    }
+  }
 
   const handleCopyHotline = (e, number) => {
     e.preventDefault()
@@ -332,12 +358,31 @@ export default function Resources() {
                 <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 shrink-0" />{r.location}</div>
                 <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 shrink-0" />{r.hours}</div>
               </div>
-              <button
-                onClick={() => setSelected(r)}
-                className="btn-secondary w-full text-sm flex items-center justify-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> View Details
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelected(r)}
+                  className="btn-secondary flex-1 text-sm flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> View Details
+                </button>
+                {currentUser && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleHelpfulVote(e, r)}
+                    disabled={votingId === r.id}
+                    title={(r.helpfulVotedBy || []).includes(currentUser.uid) ? 'Remove helpful vote' : 'Mark as helpful'}
+                    aria-pressed={(r.helpfulVotedBy || []).includes(currentUser.uid)}
+                    className={`shrink-0 flex items-center gap-1 text-xs px-2.5 py-2 rounded-lg border transition-colors disabled:opacity-60 ${
+                      (r.helpfulVotedBy || []).includes(currentUser.uid)
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-green-300 hover:text-green-600 dark:hover:text-green-400'
+                    }`}
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" />
+                    {(r.helpfulVotes || 0) > 0 && <span>{r.helpfulVotes}</span>}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
           {!loading && filtered.length === 0 && (

@@ -37,6 +37,7 @@ import {
 import { db } from '../firebase'
 import { createNotification } from '../services/notifications'
 import { getThumbnailUrl } from '../services/cloudinary'
+import { POST_CATEGORIES } from '../constants/categories'
 
 const avatarFallback = (name) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'U')}&background=2563eb&color=fff&size=100`
@@ -130,6 +131,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editContent, setEditContent] = useState(post.content)
+  const [editCategory, setEditCategory] = useState(post.category || 'General')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -265,9 +267,11 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
 
   const handleSaveEdit = async () => {
     const trimmed = editContent.trim()
-    if (!trimmed || trimmed === post.content || trimmed.length > EDIT_MAX) {
+    const categoryChanged = editCategory !== post.category
+    if (!trimmed || (trimmed === post.content && !categoryChanged) || trimmed.length > EDIT_MAX) {
       setEditing(false)
       setEditContent(post.content)
+      setEditCategory(post.category || 'General')
       return
     }
     setSaving(true)
@@ -275,6 +279,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     try {
       await updateDoc(doc(db, 'posts', post.postId), {
         content: trimmed,
+        category: editCategory,
         editedAt: serverTimestamp(),
       })
       setEditing(false)
@@ -289,6 +294,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
     setEditing(false)
     setSaveError('')
     setEditContent(post.content)
+    setEditCategory(post.category || 'General')
   }
 
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -472,6 +478,7 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                   onEdit={() => {
                     setEditing(true)
                     setEditContent(post.content)
+                    setEditCategory(post.category || 'General')
                     setMenuOpen(false)
                   }}
                   onDelete={() => {
@@ -512,6 +519,18 @@ export default function PostCard({ post, currentUser, onLike, onDelete, isAdmin 
                   {EDIT_MAX - editContent.length}
                 </span>
               )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className="input-field text-sm py-1.5"
+              >
+                {POST_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button

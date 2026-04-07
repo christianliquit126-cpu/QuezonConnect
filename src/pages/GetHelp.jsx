@@ -39,6 +39,8 @@ import {
   ThumbsUp,
   Pencil,
   Timer,
+  Phone,
+  CalendarClock,
 } from 'lucide-react'
 import { formatDistanceToNow, differenceInDays } from 'date-fns'
 import { haversine, formatDistance } from '../data/qcPlaces'
@@ -246,7 +248,12 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
       {editing ? (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Title</label>
+              <span className={`text-xs ${editForm.title.length >= 100 ? 'text-red-500' : 'text-gray-400'}`}>
+                {editForm.title.length}/100
+              </span>
+            </div>
             <input
               type="text"
               value={editForm.title}
@@ -256,11 +263,16 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Description</label>
+              <span className={`text-xs ${editForm.description.length >= 2000 ? 'text-red-500' : editForm.description.length >= 1800 ? 'text-amber-500' : 'text-gray-400'}`}>
+                {editForm.description.length}/2000
+              </span>
+            </div>
             <textarea
               value={editForm.description}
               onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-              maxLength={500}
+              maxLength={2000}
               rows={3}
               className="input-field text-sm resize-none"
             />
@@ -320,6 +332,20 @@ const HelpRequestCard = memo(function HelpRequestCard({ req, currentUser, userLo
         {distance !== null && (
           <span className="flex items-center gap-1 text-primary-500 dark:text-primary-400 font-medium">
             <Navigation className="w-3.5 h-3.5" /> {formatDistance(distance)}
+          </span>
+        )}
+        {req.phone && !editing && (
+          <a
+            href={`tel:${req.phone}`}
+            className="flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:underline font-medium"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Phone className="w-3.5 h-3.5" /> {req.phone}
+          </a>
+        )}
+        {req.neededBy && !editing && (
+          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+            <CalendarClock className="w-3.5 h-3.5" /> Needed by {req.neededBy}
           </span>
         )}
         <span className="bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 rounded-full">
@@ -470,7 +496,10 @@ export default function GetHelp() {
     category: 'Other',
     urgency: 'normal',
     location: displayUser?.location || '',
+    phone: '',
+    neededBy: '',
   })
+  const [barangayFilter, setBarangayFilter] = useState('All')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [successMsg, setSuccessMsg] = useState(false)
@@ -489,7 +518,7 @@ export default function GetHelp() {
   const titleInputRef = useRef(null)
 
   const TITLE_MAX = 100
-  const DESC_MAX = 500
+  const DESC_MAX = 2000
 
   useEffect(() => {
     const q = query(collection(db, 'helpRequests'), orderBy('createdAt', 'desc'), limit(200))
@@ -538,6 +567,8 @@ export default function GetHelp() {
         category: form.category,
         urgency: form.urgency || 'normal',
         location: form.location,
+        phone: form.phone.trim() || null,
+        neededBy: form.neededBy || null,
         imageURL: imageUrl || null,
         lat: location?.lat || displayUser?.lat || null,
         lng: location?.lng || displayUser?.lng || null,
@@ -553,6 +584,8 @@ export default function GetHelp() {
         category: 'Other',
         urgency: 'normal',
         location: displayUser?.location || '',
+        phone: '',
+        neededBy: '',
       })
       setImageUrl(null)
       setShowForm(false)
@@ -593,6 +626,15 @@ export default function GetHelp() {
 
   const URGENCY_ORDER = { emergency: 0, urgent: 1, normal: 2 }
 
+  const barangayOptions = React.useMemo(() => {
+    const set = new Set()
+    requests.forEach((r) => {
+      const b = r.barangay || (r.location && r.location.split(',')[0].trim())
+      if (b) set.add(b)
+    })
+    return Array.from(set).sort()
+  }, [requests])
+
   const filtered = React.useMemo(() => {
     let result = filter === 'All' ? requests : requests.filter((r) => r.status === filter)
     if (categoryFilter !== 'All') {
@@ -600,6 +642,12 @@ export default function GetHelp() {
     }
     if (urgencyFilter !== 'All') {
       result = result.filter((r) => (r.urgency || 'normal') === urgencyFilter)
+    }
+    if (barangayFilter !== 'All') {
+      result = result.filter((r) => {
+        const b = r.barangay || (r.location && r.location.split(',')[0].trim())
+        return b === barangayFilter
+      })
     }
     if (myRequestsOnly && currentUser) {
       result = result.filter((r) => r.uid === currentUser.uid)
@@ -631,10 +679,10 @@ export default function GetHelp() {
       })
     }
     return result
-  }, [requests, filter, categoryFilter, urgencyFilter, distanceFilter, myRequestsOnly, currentUser, location, debouncedKeyword, sortBy])
+  }, [requests, filter, categoryFilter, urgencyFilter, barangayFilter, distanceFilter, myRequestsOnly, currentUser, location, debouncedKeyword, sortBy])
 
   const hasActiveFilters = filter !== 'All' || categoryFilter !== 'All' || urgencyFilter !== 'All'
-    || myRequestsOnly || distanceFilter || debouncedKeyword.trim()
+    || barangayFilter !== 'All' || myRequestsOnly || distanceFilter || debouncedKeyword.trim()
 
   const emergencyCount = requests.filter((r) => r.urgency === 'emergency' && (!r.status || r.status === 'pending')).length
   const urgentCount = requests.filter((r) => r.urgency === 'urgent' && (!r.status || r.status === 'pending')).length
@@ -819,6 +867,35 @@ export default function GetHelp() {
                 )}
               </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="gh-phone" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Contact Number <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="gh-phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  maxLength={20}
+                  placeholder="e.g. 09XXXXXXXXX"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label htmlFor="gh-needed-by" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Needed By <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="gh-needed-by"
+                  type="date"
+                  value={form.neededBy}
+                  onChange={(e) => setForm((f) => ({ ...f, neededBy: e.target.value }))}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className="input-field"
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Photo (optional)
@@ -951,6 +1028,26 @@ export default function GetHelp() {
           ))}
         </div>
 
+        {/* Barangay/Area Filter */}
+        {barangayOptions.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <span className="shrink-0 text-xs text-gray-400 font-medium">Area:</span>
+            {['All', ...barangayOptions.slice(0, 10)].map((b) => (
+              <button
+                key={b}
+                onClick={() => setBarangayFilter(b)}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                  barangayFilter === b
+                    ? 'bg-gray-700 dark:bg-gray-200 text-white dark:text-gray-900'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Category Filters */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {['All', ...CATEGORIES].map((c) => (
@@ -993,6 +1090,7 @@ export default function GetHelp() {
                     setFilter('All')
                     setCategoryFilter('All')
                     setUrgencyFilter('All')
+                    setBarangayFilter('All')
                     setMyRequestsOnly(false)
                     setDistanceFilter(false)
                     setKeyword('')
