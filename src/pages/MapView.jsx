@@ -283,12 +283,17 @@ const SidebarContent = memo(function SidebarContent({
         ) : location ? (
           <div>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                locationStatus === 'low-accuracy' ? 'bg-amber-400' : 'bg-green-500'
+              }`} />
               <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                {address?.barangay || address?.city || 'Location detected'}
+                {address?.shortLabel ||
+                  address?.barangay ||
+                  address?.city ||
+                  `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
               </span>
             </div>
-            {address?.city && (
+            {address?.city && address.city !== (address?.shortLabel || address?.barangay) && (
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 ml-3.5">
                 {address.city}
                 {address.province && address.province !== address.city
@@ -296,14 +301,17 @@ const SidebarContent = memo(function SidebarContent({
                   : ''}
               </p>
             )}
-            <div className="mt-1 ml-3.5">
-              <LocationStatusPill
-                locationStatus={locationStatus}
-                accuracy={accuracy}
-                locationSource={locationSource}
-                onRetry={detect}
-              />
-            </div>
+            {/* Only show warning-level status messages — not the normal "locked" state */}
+            {(locationStatus === 'low-accuracy' || locationStatus === 'unacceptable') && (
+              <div className="mt-1 ml-3.5">
+                <LocationStatusPill
+                  locationStatus={locationStatus}
+                  accuracy={accuracy}
+                  locationSource={locationSource}
+                  onRetry={detect}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -321,6 +329,16 @@ const SidebarContent = memo(function SidebarContent({
           <div className="flex items-start gap-1.5 mt-2 text-xs text-red-500 dark:text-red-400">
             <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
             <span>{locError}</span>
+          </div>
+        )}
+        {locationStatus === 'denied' && (
+          <div className="mt-1">
+            <LocationStatusPill
+              locationStatus={locationStatus}
+              accuracy={accuracy}
+              locationSource={locationSource}
+              onRetry={detect}
+            />
           </div>
         )}
       </div>
@@ -958,11 +976,16 @@ export default function MapView() {
             >
               <Popup>
                 <div className="text-sm font-medium">Your Location</div>
-                {address?.barangay && (
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    {address.barangay}, {address.city}
-                  </div>
-                )}
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {address?.shortLabel || address?.barangay || address?.city
+                    ? [
+                        address.shortLabel || address.barangay,
+                        address.city,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')
+                    : `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`}
+                </div>
               </Popup>
             </Marker>
           )}

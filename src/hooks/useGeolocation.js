@@ -4,7 +4,7 @@ import { cacheGet, cacheSet, saveLocationHistory } from '../services/cache'
 const LOCATION_CACHE_KEY = 'qcc_last_location'
 const LOCATION_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 const DETECT_THROTTLE_MS = 20 * 1000 // 20s between GPS calls (reduced from 30s)
-const GEOCODE_MOVE_THRESHOLD_M = 200 // only re-geocode if moved > 200m
+const GEOCODE_MOVE_THRESHOLD_M = 100 // only re-geocode if moved > 100m (tighter for dense urban areas)
 const WATCH_MOVE_THRESHOLD_M = 30 // watchPosition update threshold in metres
 const MAX_GPS_SAMPLES = 3 // how many GPS readings to take and compare
 const SAMPLE_INTERVAL_MS = 800 // pause between GPS samples
@@ -49,25 +49,30 @@ const classifyAccuracy = (acc) => {
 const reverseGeocode = async (lat, lng, signal) => {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`,
       {
         headers: {
           'Accept-Language': 'en',
           'User-Agent': 'QCCommunityApp/1.0',
         },
-        signal: signal ?? AbortSignal.timeout(8000),
+        signal: signal ?? AbortSignal.timeout(10000),
       }
     )
     const data = await res.json()
     const addr = data.address || {}
 
-    // Prioritize most specific administrative level for Philippine addresses
+    // Prioritize most specific administrative level for Philippine addresses.
+    // Extended list handles areas where suburb/neighbourhood is absent.
     const barangay =
       addr.suburb ||
       addr.neighbourhood ||
       addr.village ||
       addr.quarter ||
       addr.hamlet ||
+      addr.residential ||
+      addr.locality ||
+      addr.district ||
+      addr.road ||
       addr.county ||
       ''
 
@@ -77,19 +82,29 @@ const reverseGeocode = async (lat, lng, signal) => {
       addr.municipality ||
       addr.city_district ||
       addr.state_district ||
+      addr.region ||
       ''
 
     const province = addr.state || addr.county || ''
+
+    // Build a human-readable short label for display even when barangay is absent
+    const shortLabel =
+      barangay ||
+      city ||
+      (addr.state ? `${addr.state}` : '') ||
+      data.display_name?.split(',')[0] ||
+      ''
 
     return {
       barangay,
       city,
       province,
+      shortLabel,
       display: data.display_name || '',
       raw: addr,
     }
   } catch {
-    return { barangay: '', city: '', province: '', display: '', raw: {} }
+    return { barangay: '', city: '', province: '', shortLabel: '', display: '', raw: {} }
   }
 }
 
@@ -233,8 +248,9 @@ export default function useGeolocation() {
         if (!abortRef.current) {
           setAddress(addrData)
           lastGeocodedLocRef.current = { lat, lng }
-          const label = addrData?.barangay
-            ? `${addrData.barangay}, ${addrData.city || 'QC'}`
+          const primary = addrData?.shortLabel || addrData?.barangay || ''
+          const label = primary
+            ? `${primary}${addrData.city && addrData.city !== primary ? `, ${addrData.city}` : ''}`
             : addrData?.city || ''
           saveLocationHistory(lat, lng, label)
         }
@@ -288,8 +304,9 @@ export default function useGeolocation() {
           reverseGeocode(lat, lng).then((addrData) => {
             setAddress(addrData)
             lastGeocodedLocRef.current = { lat, lng }
-            const label = addrData?.barangay
-              ? `${addrData.barangay}, ${addrData.city || 'QC'}`
+            const primary = addrData?.shortLabel || addrData?.barangay || ''
+            const label = primary
+              ? `${primary}${addrData.city && addrData.city !== primary ? `, ${addrData.city}` : ''}`
               : addrData?.city || ''
             saveLocationHistory(lat, lng, label)
           })
