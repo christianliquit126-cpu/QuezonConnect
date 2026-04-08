@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Heart, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
+import { Heart, Eye, EyeOff, AlertCircle, Loader2, Lock } from 'lucide-react'
 
 const getSignUpError = (err) => {
   switch (err.code) {
@@ -114,19 +114,22 @@ export default function SignUp() {
               )}
               Google
             </button>
-            <button
-              type="button"
-              onClick={handleFacebook}
-              disabled={!!socialLoading || loading}
-              className="flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {socialLoading === 'facebook' ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              ) : (
+            {/* Facebook — coming soon, locked */}
+            <div className="relative">
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="w-full flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed opacity-60"
+              >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-              )}
-              Facebook
-            </button>
+                Facebook
+              </button>
+              <span className="absolute -top-2 -right-1 flex items-center gap-0.5 bg-gray-500 dark:bg-gray-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                <Lock className="w-2 h-2" aria-hidden="true" />
+                Soon
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3" role="separator">
@@ -275,13 +278,13 @@ export default function SignUp() {
             </button>
             <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-2">
               By creating an account you agree to our{' '}
-              <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+              <Link to="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                 Terms of Service
-              </a>
+              </Link>
               {' '}and{' '}
-              <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">
                 Privacy Policy
-              </a>.
+              </Link>.
             </p>
           </form>
         </div>

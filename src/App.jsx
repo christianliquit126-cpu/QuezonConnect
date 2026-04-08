@@ -100,6 +100,8 @@ const Admin         = lazy(() => import('./pages/Admin'))
 const MapView       = lazy(() => import('./pages/MapView'))
 const Announcements = lazy(() => import('./pages/Announcements'))
 const Contact       = lazy(() => import('./pages/Contact'))
+const Terms         = lazy(() => import('./pages/Terms'))
+const Privacy       = lazy(() => import('./pages/Privacy'))
 
 const PageLoader = () => (
   <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
@@ -147,6 +149,8 @@ const AppRoutes = () => {
               <Route path="/map" element={<MapView />} />
               <Route path="/announcements" element={<Announcements />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
