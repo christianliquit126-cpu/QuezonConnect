@@ -88,16 +88,18 @@ function PageTransition({ children }) {
   )
 }
 
-const Login     = lazy(() => import('./pages/Login'))
-const SignUp    = lazy(() => import('./pages/SignUp'))
-const GetHelp   = lazy(() => import('./pages/GetHelp'))
-const GiveHelp  = lazy(() => import('./pages/GiveHelp'))
-const Resources = lazy(() => import('./pages/Resources'))
-const Messages  = lazy(() => import('./pages/Messages'))
-const Profile   = lazy(() => import('./pages/Profile'))
-const Settings  = lazy(() => import('./pages/Settings'))
-const Admin     = lazy(() => import('./pages/Admin'))
-const MapView   = lazy(() => import('./pages/MapView'))
+const Login         = lazy(() => import('./pages/Login'))
+const SignUp        = lazy(() => import('./pages/SignUp'))
+const GetHelp       = lazy(() => import('./pages/GetHelp'))
+const GiveHelp      = lazy(() => import('./pages/GiveHelp'))
+const Resources     = lazy(() => import('./pages/Resources'))
+const Messages      = lazy(() => import('./pages/Messages'))
+const Profile       = lazy(() => import('./pages/Profile'))
+const Settings      = lazy(() => import('./pages/Settings'))
+const Admin         = lazy(() => import('./pages/Admin'))
+const MapView       = lazy(() => import('./pages/MapView'))
+const Announcements = lazy(() => import('./pages/Announcements'))
+const Contact       = lazy(() => import('./pages/Contact'))
 
 const PageLoader = () => (
   <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 64px)' }}>
@@ -143,6 +145,8 @@ const AppRoutes = () => {
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/map" element={<MapView />} />
+              <Route path="/announcements" element={<Announcements />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

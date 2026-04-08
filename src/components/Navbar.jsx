@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   Home, HelpCircle, Heart, BookOpen, MessageCircle,
-  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map, LogOut, Loader2
+  Moon, Sun, Menu, X, Search, Settings, User, Shield, Map, LogOut, Loader2, Newspaper
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 import { db } from '../firebase'
@@ -17,6 +17,7 @@ const navLinks = [
   { to: '/give-help', label: 'Give Help', icon: Heart },
   { to: '/map', label: 'Map', icon: Map },
   { to: '/resources', label: 'Resources', icon: BookOpen },
+  { to: '/announcements', label: 'Announcements', icon: Newspaper },
 ]
 
 function useUnreadMessages(currentUser) {

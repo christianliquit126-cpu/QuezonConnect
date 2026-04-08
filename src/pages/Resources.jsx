@@ -30,7 +30,11 @@ import {
   Copy,
   Check,
   ThumbsUp,
+  ChevronDown,
+  ChevronUp,
+  FileText,
 } from 'lucide-react'
+import { SERVICES } from '../data/services'
 
 const SEED_RESOURCES = [
   {
@@ -190,6 +194,55 @@ function DetailModal({ resource, onClose }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function ServiceInfoCard({ service }) {
+  const [expanded, setExpanded] = useState(false)
+  const PREVIEW_ITEMS = 3
+  const items = service.content
+  const hasMore = items.length > PREVIEW_ITEMS
+  const visible = expanded ? items : items.slice(0, PREVIEW_ITEMS)
+
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 bg-primary-50 dark:bg-primary-900/20 rounded-xl flex items-center justify-center shrink-0">
+          <FileText className="w-4 h-4 text-primary-600 dark:text-primary-400" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-snug">{service.title}</h3>
+          <span className="text-xs bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-2 py-0.5 rounded-full mt-1 inline-block">
+            {service.category}
+          </span>
+        </div>
+      </div>
+      <ul className="space-y-1.5">
+        {visible.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            <span className="shrink-0 mt-1.5 w-1.5 h-1.5 bg-primary-400 dark:bg-primary-500 rounded-full" aria-hidden="true" />
+            {item}
+          </li>
+        ))}
+      </ul>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-1 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline transition-colors"
+          aria-expanded={expanded}
+        >
+          {expanded ? (
+            <><ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> Show Less</>
+          ) : (
+            <><ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> Show All Steps</>
+          )}
+        </button>
+      )}
+      <p className="text-xs text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-800 pt-3">
+        Source: {service.source}
+      </p>
     </div>
   )
 }
@@ -425,6 +478,19 @@ export default function Resources() {
                 )}
               </button>
             </a>
+          ))}
+        </div>
+      </div>
+
+      {/* Key Information / Services */}
+      <div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Key Information &amp; Services</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Step-by-step guides and essential service information for Quezon City residents.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {SERVICES.map((svc) => (
+            <ServiceInfoCard key={svc.id} service={svc} />
           ))}
         </div>
       </div>

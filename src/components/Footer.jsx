@@ -8,12 +8,14 @@ const PRIMARY_LINKS = [
   { label: 'Give Help', to: '/give-help' },
   { label: 'Map', to: '/map' },
   { label: 'Resources', to: '/resources' },
+  { label: 'Announcements', to: '/announcements' },
   { label: 'Messages', to: '/messages' },
 ]
 
 const SECONDARY_LINKS = [
   { label: 'Profile', to: '/profile' },
   { label: 'Settings', to: '/settings' },
+  { label: 'Contact Us', to: '/contact' },
 ]
 
 const KEYBOARD_SHORTCUTS = [
